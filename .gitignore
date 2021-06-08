@@ -1,5 +1,7 @@
-build/*
-vecsz
+./build/*
+./vecsz
 *.cpp
 *.txt
 *.csv
+*.d
+*.o
