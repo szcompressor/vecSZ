@@ -5,6 +5,7 @@
 #include <immintrin.h> //avx intrinsics
 
 #include "types.hh"
+#include "constants.hh"
 
 namespace pSZ {
 namespace PredictionDualQuantization {

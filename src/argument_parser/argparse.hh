@@ -6,7 +6,7 @@
 #include <regex>
 #include <string>
 
-#include "types.hh"
+#include "../types.hh"
 #include "utils/format.hh"
 
 using std::string;

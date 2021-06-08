@@ -28,8 +28,6 @@ using namespace std;
 template <typename T>
 double GetDatumValueRange(string fname, size_t l);
 
-size_t* InitializeDims(size_t cap, size_t n_dims, size_t dim0, size_t dim1 = 1, size_t dim2 = 1, size_t dim3 = 1, size_t block_size = 16);
-
 void SetDims(size_t* dims_L16, size_t new_dims[4]);
 
 typedef struct ErrorBoundConfigurator {
@@ -42,7 +40,7 @@ typedef struct ErrorBoundConfigurator {
 
     void ChangeToTightBase2();
 
-    ErrorBoundConfigurator(int _capacity = 32768, double _precision = 1, double _exponent = -3, int _base = 10);
+    ErrorBoundConfigurator(int _capacity = 32768, double _precision = 1, double eb = 0.0001);
 
     void debug() const;
 

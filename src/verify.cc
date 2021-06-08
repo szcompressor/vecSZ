@@ -7,6 +7,7 @@
 #include "format.hh"
 #include "types.hh"
 #include "verify.hh"
+#include "dimensions.hh"
 
 using namespace std;
 

@@ -8,15 +8,12 @@
 #include "psz_dualquant_opt.hh"
 #include "huffman_cpu.hh"
 #include "verify.hh"
-//#include <papi.h>
 
 #include "autotune.hh"
 
 
 
 namespace PdQ  = pSZ::PredictionDualQuantization;
-namespace PQRs = pSZ::PredictionQuantizationReconstructionSingleton;
-namespace PQRb = pSZ::PredictionQuantizationReconstructionBlocked;
 namespace DV = DesignVerification;
 
 /* Used for timing */
@@ -67,12 +64,6 @@ void cx_sim(std::string&        finame,  //
     auto __attribute__((aligned(64))) xdata   = new T[len]();
     auto __attribute__((aligned(64))) outlier = new T[len]();
     auto __attribute__((aligned(64))) code    = new Q[len]();
-
-    if (fine_massive)
-        cout << "\e[46musing (blocked) dualquant\e[0m" << endl;
-    else {
-        cout << (blocked == true ? "\e[46musing blocked sz14\e[0m" : "\e[46musing non-blocked sz14\e[0m") << endl;
-    }
 
     ////////////////////////////////////////////////////////////////////////////////
     // start of compression

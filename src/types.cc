@@ -37,55 +37,14 @@ double GetDatumValueRange(string fname, size_t l)
 template double GetDatumValueRange<float>(string fname, size_t l);
 template double GetDatumValueRange<double>(string fname, size_t l);
 
-size_t* InitializeDims(size_t cap, size_t n_dims, size_t dim0, size_t dim1, size_t dim2, size_t dim3, size_t block_size)
+ErrorBoundConfigurator::ErrorBoundConfigurator(int _capacity, double _precision, double eb)
 {
-    auto dims_L16 = new size_t[16]();
-
-    size_t dims[] = {dim0, dim1, dim2, dim3};
-    std::copy(dims, dims + 4, dims_L16);
-    dims_L16[nDIM] = n_dims;
-
-    int BLK = block_size;
-    /*
-    if (dims_L16[nDIM] == 1) BLK = B_1d;
-    else if (dims_L16[nDIM] == 2)
-        BLK = B_2d;
-    else if (dims_L16[nDIM] == 3)
-        BLK = B_3d;
-    */
-
-    dims_L16[nBLK0]  = (dims_L16[DIM0] - 1) / (size_t)BLK + 1;
-    dims_L16[nBLK1]  = (dims_L16[DIM1] - 1) / (size_t)BLK + 1;
-    dims_L16[nBLK2]  = (dims_L16[DIM2] - 1) / (size_t)BLK + 1;
-    dims_L16[nBLK3]  = (dims_L16[DIM3] - 1) / (size_t)BLK + 1;
-    dims_L16[LEN]    = dims_L16[DIM0] * dims_L16[DIM1] * dims_L16[DIM2] * dims_L16[DIM3];
-    dims_L16[CAP]    = cap;
-    dims_L16[RADIUS] = cap / 2;
-
-    return dims_L16;
-}
-
-ErrorBoundConfigurator::ErrorBoundConfigurator(int _capacity, double _precision, double _exponent, int _base)
-{
+    int _base = 10;
     capacity = _capacity;
     radius   = capacity / 2;
     mode     = std::string("ABS");
 
-    if (_precision != 1 and _base == 2) { cerr << "tmp.ly we only support 1 x pow(2, \?\?)" << endl; }
-    eb_final   = _precision * pow(_base, _exponent);
-    base       = _base;
-    exp_base10 = _base == 10 ? _exponent : log10(eb_final);
-    exp_base2  = _base == 2 ? _exponent : log2(eb_final);
-
-    cout << log_info << "bin.cap:\t\t" << _capacity << endl;
-    if (_base == 10) {
-        cout << log_info << "user-set eb:\t" << _precision;
-        cout << " x 10^(" << _exponent << ") = " << eb_final << endl;
-    }
-    else if (_base == 2) {
-        cout << "eb.set.to:\t"
-             << "2^(" << _exponent << ") = " << eb_final << endl;
-    }
+    eb_final   = eb;
 }
 
 void ErrorBoundConfigurator::ChangeToRelativeMode(double value_range)
