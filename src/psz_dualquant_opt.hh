@@ -11,17 +11,10 @@ namespace pSZ {
 namespace PredictionDualQuantization {
 
 template <typename T, typename Q>
-void c_lorenzo_1d1l(T* data, T* outlier, Q* bcode, size_t const* const dims_L16, double const* const ebs_L4, T* pred_err, T* comp_err, size_t b0, size_t blksz, int vector_reg) {
+void c_lorenzo_1d1l(T* data, T* outlier, Q* bcode, size_t const* const dims_L16, double const* const ebs_L4, size_t b0, size_t blksz, int vector_reg) {
     auto   radius = static_cast<Q>(dims_L16[RADIUS]);
     size_t _idx0  = b0 * blksz;
 
-#ifdef PRED_COMP_ERR
-    for (size_t i0 = 0; i0 < blksz; i0++) {
-        size_t id = _idx0 + i0;
-        pred_err[id] = data[id];  // for recording pred error
-        comp_err[id] = data[id];
-    }
-#endif
 
 	// prequantization with AVX
 #ifdef AVX512
@@ -153,12 +146,6 @@ if (vector_reg == 512) {
 		//data[id]         = (1 - quantizable) * data[id];   //NEW CODE
 		bcode[id]        = quantizable * _code;
 	}
-#ifdef PRED_COMP_ERR
-		for (size_t i0 = 0; i0 < blksz; i0++) {
-			pred_err[id] -= pred * ebs_L4[__2EB];  // for recording pred error
-			comp_err[id] -= bcode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bcode[id] - radius)) * ebs_L4[__2EB];
-		}
-#endif
   }
 	else {
 		for (size_t i0 = 0; i0 < blksz; i0++) {
@@ -171,10 +158,6 @@ if (vector_reg == 512) {
 			outlier[id]      = (1 - quantizable) * data[id]; //OLD CODE
 			//data[id]         = (1 - quantizable) * data[id];   //NEW CODE
 			bcode[id]        = quantizable * _code;
-#ifdef PRED_COMP_ERR
-			pred_err[id] -= pred * ebs_L4[__2EB];  // for recording pred error
-			comp_err[id] -= bcode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bcode[id] - radius)) * ebs_L4[__2EB];
-#endif
 		}
 	}
 }
@@ -185,8 +168,6 @@ void c_lorenzo_2d1l(T*                  data,
                     Q*                  bcode,
                     size_t const* const dims_L16,
                     double const* const ebs_L4,
-                    T*                  pred_err,
-                    T*                  comp_err,
                     size_t              b0,
                     size_t              b1,
                     int                 blksz,
@@ -254,14 +235,6 @@ if (vector_reg == 512) {
       __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 16* blksz],0,0);
 #endif
         }
-#ifdef PRED_COMP_ERR
-        for (size_t i1 = 0; i1 < blksz; i1++) {
-            for (size_t i0 = 0; i0 < blksz; i0++) {
-                pred_err[id] = data[id];  // for recording pred error
-                comp_err[id] = data[id];
-	    }
-	}
-#endif
 
     // postquantization
     for (size_t i1 = 0; i1 < blksz; i1++) {
@@ -328,14 +301,6 @@ if (vector_reg == 512) {
         bcode[id]          = quantizable * _code;
       }
     }
-#ifdef PRED_COMP_ERR
-    for (size_t i1 = 0; i1 < blksz; i1++) {
-      for (size_t i0 = 0; i0 < blksz; i0++) {
-              pred_err[id] -= pred * ebs_L4[__2EB];  // for recording pred error
-        comp_err[id] -= bincode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bincode[id] - radius)) * ebs_L4[__2EB];
-        }
-    }
-#endif
   }
   else { // sequential case
 #ifdef AVX512
@@ -393,14 +358,6 @@ if (vector_reg == 512) {
       __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 16* blksz],0,0);
 #endif
         }
-#ifdef PRED_COMP_ERR
-        for (size_t i1 = 0; i1 < blksz; i1++) {
-            for (size_t i0 = 0; i0 < blksz; i0++) {
-                pred_err[id] = data[id];  // for recording pred error
-                comp_err[id] = data[id];
-	    }
-	}
-#endif
      //__m256 vend1    = _mm256_set_ps(_idx1+7,_idx1+6,_idx1+5,_idx1+4,_idx1+3,_idx1+2,_idx1+1,_idx1+0);
 
     // postquantization
@@ -477,14 +434,6 @@ if (vector_reg == 512) {
       }
      // vend1 = _mm256_add_ps(vend1,vincr);
     }
-#ifdef PRED_COMP_ERR
-    for (size_t i1 = 0; i1 < blksz; i1++) {
-      for (size_t i0 = 0; i0 < blksz; i0++) {
-              pred_err[id] -= pred * ebs_L4[__2EB];  // for recording pred error
-        comp_err[id] -= bincode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bincode[id] - radius)) * ebs_L4[__2EB];
-        }
-    }
-#endif
   }
 }
 
@@ -494,8 +443,6 @@ void c_lorenzo_3d1l(T*                  data,
                     Q*                  bcode,
                     size_t const* const dims_L16,
                     double const* const ebs_L4,
-                    T*                  pred_err,
-                    T*                  comp_err,
                     size_t              b0,
                     size_t              b1,
                     size_t              b2,
@@ -570,16 +517,6 @@ if (vector_reg == 512) {
 #endif
         }
     }
-#ifdef PRED_COMP_ERR
-    for (size_t i2 = 0; i2 < blksz; i2++) {
-        for (size_t i1 = 0; i1 < blksz; i1++) {
-            for (size_t i0 = 0; i0 < blksz; i0++) {
-                pred_err[id] = data[id];  // for recording pred error
-                comp_err[id] = data[id];
-	    }
-	}
-    }
-#endif
 
     // postquantization
      for (size_t i2 = 0; i2 < blksz; i2++) {
@@ -663,16 +600,6 @@ if (vector_reg == 512) {
         }
       }
     }
-#ifdef PRED_COMP_ERR
-    for (size_t i2 = 0; i2 < blksz; i2++) {
-      for (size_t i1 = 0; i1 < blksz; i1++) {
-        for (size_t i0 = 0; i0 < blksz; i0++) {
-          pred_err[id] -= pred * ebs_L4[__2EB];  // for recording pred error
-          comp_err[id] -= bincode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bincode[id] - radius)) * ebs_L4[__2EB];
-        }
-      }
-    }
-#endif
   }
   else {
 #ifdef AVX512
@@ -744,16 +671,6 @@ if (vector_reg == 512) {
 #endif
         }
     }
-#ifdef PRED_COMP_ERR
-    for (size_t i2 = 0; i2 < blksz; i2++) {
-        for (size_t i1 = 0; i1 < blksz; i1++) {
-            for (size_t i0 = 0; i0 < blksz; i0++) {
-                pred_err[id] = data[id];  // for recording pred error
-                comp_err[id] = data[id];
-	    }
-	}
-    }
-#endif
 
      const __m256i mask       = _mm256_set1_epi32(0xFFFFFFFF);
 
@@ -848,16 +765,6 @@ if (vector_reg == 512) {
         }
       }
     }
-#ifdef PRED_COMP_ERR
-    for (size_t i2 = 0; i2 < blksz; i2++) {
-      for (size_t i1 = 0; i1 < blksz; i1++) {
-        for (size_t i0 = 0; i0 < blksz; i0++) {
-          pred_err[id] -= pred * ebs_L4[__2EB];  // for recording pred error
-          comp_err[id] -= bincode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bincode[id] - radius)) * ebs_L4[__2EB];
-        }
-      }
-    }
-#endif
   }
 }
 

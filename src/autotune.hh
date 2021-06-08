@@ -47,9 +47,9 @@ double run_sample_blocks(argparse* ap, bool fine_massive, bool blocked, T* data,
                 size_t b0 = rand() % dims_L16[nBLK0];
                 if (fine_massive)
 #ifdef REPBLK
-                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, blksz, vecsz);
+                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, 0, blksz, vecsz);
 #else
-                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, blksz, vecsz);
+                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
 #endif
             }
         }
@@ -61,9 +61,9 @@ double run_sample_blocks(argparse* ap, bool fine_massive, bool blocked, T* data,
                 size_t b1 = rand() % dims_L16[nBLK1];
                 if (fine_massive)
 #ifdef REPBLK
-                    PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, 0, blksz, vecsz);
+                    PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, 0, 0, blksz, vecsz);
 #else
-                    PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, b1, blksz, vecsz);
+                    PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
 #endif
             }
         } 
@@ -76,9 +76,9 @@ double run_sample_blocks(argparse* ap, bool fine_massive, bool blocked, T* data,
                 size_t b2 = rand() % dims_L16[nBLK2];
                 if (fine_massive)
 #ifdef REPBLK
-                    PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, 0, 0, blksz, vecsz);
+                    PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, 0, 0, 0, blksz, vecsz);
 #else
-                    PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, b1, b2, blksz, vecsz);
+                    PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
 #endif
             }
         } 
@@ -92,17 +92,17 @@ double run_sample_blocks(argparse* ap, bool fine_massive, bool blocked, T* data,
 }
 
 template <typename T, typename Q>
-int autotune_block_sizes(argparse* ap, double* timing, bool fine_massive, bool blocked, T* data, T* outlier, Q* bcode, size_t const* const dims, double const* const ebs_L4, T* pred_err, T* comp_err)
+int autotune_block_sizes(argparse* ap, double* timing, bool fine_massive, bool blocked, T* data, T* outlier, Q* bcode, size_t const* const dims, double const* const ebs_L4)
 {
 	const int NSIZES = 4;
 	const int sizes[NSIZES] = {8, 16, 32, 64};
 	int blksz;
 	double newTime;
 
-	*timing = run_sample_blocks<T, Q>(ap, fine_massive, blocked, data, outlier, bcode, dims, ebs_L4, pred_err, comp_err);
+	*timing = run_sample_blocks<T, Q>(ap, fine_massive, blocked, data, outlier, bcode, dims, ebs_L4);
 	for (int i = 1; i < NSIZES; i++)
 	{
-		newTime = run_sample_blocks<T, Q>(ap, fine_massive, blocked, data, outlier, bcode, dims, ebs_L4, pred_err, comp_err);
+		newTime = run_sample_blocks<T, Q>(ap, fine_massive, blocked, data, outlier, bcode, dims, ebs_L4);
 		blksz = (newTime < *timing) ? sizes[i] : blksz;
 		*timing = (newTime < *timing) ? newTime : *timing;
 	}
@@ -111,16 +111,16 @@ int autotune_block_sizes(argparse* ap, double* timing, bool fine_massive, bool b
 }
 
 template <typename T, typename Q>
-int autotune_vector_len(argparse* ap, int* blksz, double* timing, bool fine_massive, bool blocked, T* data, T* outlier, Q* bcode, size_t const* const dims, double const* const ebs_L4, T* pred_err, T* comp_err)
+int autotune_vector_len(argparse* ap, int* blksz, double* timing, bool fine_massive, bool blocked, T* data, T* outlier, Q* bcode, size_t const* const dims, double const* const ebs_L4)
 {
 	const int NSIZES = 2;
 	const int sizes[NSIZES] = {256, 512};
 	int vecsz, blksz_256, blksz_512;
 	double time_512, time_256;
 
-	blksz_256 = autotune_block_sizes<T,Q>(ap, &time_256, fine_massive, blocked, data, outlier, bcode, dims, ebs_L4, pred_err, comp_err);
+	blksz_256 = autotune_block_sizes<T,Q>(ap, &time_256, fine_massive, blocked, data, outlier, bcode, dims, ebs_L4);
 #ifdef AVX512
-	blksz_512 = autotune_block_sizes<T,Q>(ap, &time_512, fine_massive, blocked, data, outlier, bcode, dims, ebs_L4, pred_err, comp_err);
+	blksz_512 = autotune_block_sizes<T,Q>(ap, &time_512, fine_massive, blocked, data, outlier, bcode, dims, ebs_L4);
 	
 	if (time_512 < time_256) {
 		*blksz = blksz_512;

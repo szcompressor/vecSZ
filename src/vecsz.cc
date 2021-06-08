@@ -11,9 +11,6 @@
 #include "query.hh"
 #include "dimensions.hh"
 
-
-namespace fm = pSZ::FineMassiveSimulation;
-
 int main(int argc, char** argv) {
     std::string eb_mode, dataset, datum_path;
     double      eb;
@@ -46,8 +43,8 @@ int main(int argc, char** argv) {
     auto ebs_L4 = InitializeErrorBoundFamily(eb_config);
 
 #ifdef AUTOTUNE
-    fm::cx_sim<float, int>(datum_path, dataset, dims_L16, ebs_L4, nnz_outlier, blk, num_iterations, sample_pct, true, true, true);
+    vecsz::interface::Compress<float, int>(datum_path, dataset, dims_L16, ebs_L4, nnz_outlier, blk, num_iterations, sample_pct, true, true, true);
 #else
-    fm::cx_sim<float, int>(datum_path, dataset, dims_L16, ebs_L4, nnz_outlier, blk, true, true, true);
+    vecsz::interface::Compress<float, int>(datum_path, dataset, dims_L16, ebs_L4, nnz_outlier, blk, true, true, true);
 #endif
 }

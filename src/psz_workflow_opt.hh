@@ -27,39 +27,32 @@ high_resolution_clock::time_point timer2 = high_resolution_clock::now();
 #define TIME2 duration_cast<duration<double>>(high_resolution_clock::now() - timer).count()
 #define TIME3 duration_cast<duration<double>>(high_resolution_clock::now() - timer2).count()
 
-namespace pSZ {
+namespace vecsz {
 
-namespace FineMassiveSimulation {
+namespace interface {
 
 namespace __loop {}
 
 template <typename T, typename Q>
-void cx_sim(std::string&        finame,  //
-            std::string const&  dataset,
-            size_t const* const dims,
-            double const* const ebs_L4,
-            size_t&             num_outlier,
-            size_t              B,
+void Compress(std::string&        finame,  //
+              std::string const&  dataset,
+              size_t const* const dims,
+              double const* const ebs_L4,
+              size_t&             num_outlier,
+              size_t              B,
 #ifdef AUTOTUNE
-	    int			num_iterations,
-	    float		sample_pct,
+	          int                 num_iterations,
+	          float               sample_pct,
 #endif
-            bool                fine_massive = false,
-            bool                blocked      = false,
-            bool                show_histo   = false) {
+              bool                fine_massive = false,
+              bool                blocked      = false,
+              bool                show_histo   = false) {
 
     timer = high_resolution_clock::now(); // begin timing
     size_t len = dims[LEN];
 
     auto __attribute__((aligned(64))) data     = io::ReadBinaryToNewArray<T>(finame, len);
     auto __attribute__((aligned(64))) data_cmp = io::ReadBinaryToNewArray<T>(finame, len);
-
-    T* pred_err = nullptr;
-    T* comp_err = nullptr;
-#ifdef PRED_COMP_ERR
-    pred_err = new T[len]();
-    comp_err = new T[len]();
-#endif
 
     auto __attribute__((aligned(64))) xdata   = new T[len]();
     auto __attribute__((aligned(64))) outlier = new T[len]();
@@ -75,7 +68,7 @@ void cx_sim(std::string&        finame,  //
 #endif
 #ifdef AUTOTUNE
    timer2 = high_resolution_clock::now(); // begin timing
-   vecsz = autotune_vector_len<T,Q,B>(num_iterations, sample_pct, &blksz, &timing, fine_massive, blocked, dataset, dims[CAP], data, outlier, code, dims, ebs_L4, pred_err, comp_err);
+   vecsz = autotune_vector_len<T,Q,B>(num_iterations, sample_pct, &blksz, &timing, fine_massive, blocked, dataset, dims[CAP], data, outlier, code, dims, ebs_L4);
    auto dims_L16 = InitializeDemoDims(dataset, dims[CAP], blksz);
    double autotune_t = TIME3; 
    cout << setprecision(6) << "Autotune Time: " << autotune_t << endl;
@@ -113,9 +106,9 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
             for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
                 if (fine_massive)
 #ifdef REPBLK
-                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, blksz, vecsz);
+                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, 0, blksz, vecsz);
 #else
-                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, blksz, vecsz);
+                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
 #endif
             }
         }
@@ -126,9 +119,9 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
                 for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
                     if (fine_massive)
 #ifdef REPBLK
-                        PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, 0, blksz, vecsz);
+                        PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, 0, 0, blksz, vecsz);
 #else
-                        PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, b1, blksz, vecsz);
+                        PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
 #endif
                 }
             }
@@ -142,9 +135,9 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
                     for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
                         if (fine_massive)
 #ifdef REPBLK
-                            PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, 0, 0, blksz, vecsz);
+                            PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, 0, 0, 0, blksz, vecsz);
 #else
-                            PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, b1, b2, blksz, vecsz);
+                            PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
 #endif
                     }
                 }
@@ -187,10 +180,7 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
    //     Analysis::histogram<int>(std::string("bincode/quant.code"), code, len, 8);
   //  }
  //   Analysis::getEntropy(code, len, 1024);
-#ifdef PRED_COMP_ERR
-    Analysis::histogram<T>(std::string("pred.error"), pred_err, len, 8);  // TODO when changing to 8, seg fault
-    Analysis::histogram<T>(std::string("comp.error"), comp_err, len, 16);
-#endif
+
 /*	FILE *fp2 = fopen("voutliers.csv","w");
 	fprintf(fp2,"voutliers\n");
     for(size_t i = 0;i < len;i++) {
@@ -278,12 +268,6 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
 
     if (fine_massive) {
         io::WriteBinaryFile(xdata, len, new string(finame + ".psz.cusz.out"));
-    } else if (blocked == true and fine_massive == false) {
-        io::WriteBinaryFile(xdata, len, new string(finame + ".psz.sz14blocked.out"));
-    } else if (blocked == false and fine_massive == false) {
-        io::WriteBinaryFile(xdata, len, new string(finame + ".psz.sz14.out"));
-        io::WriteBinaryFile(pred_err, len, new string(finame + ".psz.sz14.prederr"));
-        io::WriteBinaryFile(comp_err, len, new string(finame + ".psz.sz14.xerr"));
     }
     Analysis::VerifyData(xdata, data_cmp, len, 1);
 */
