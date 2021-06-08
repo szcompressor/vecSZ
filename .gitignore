@@ -1,0 +1,5 @@
+build/*
+vecsz
+*.cpp
+*.txt
+*.csv
