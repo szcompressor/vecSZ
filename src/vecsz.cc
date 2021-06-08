@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "argument_parser/argparse.hh"
-#include "psz_workflow_opt.hh"
+#include "workflow.hh"
 #include "types.hh"
 #include "verify.hh"
 #include "query.hh"
@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
 
     auto eb_config  = new config_t(DICT_SIZE, eb);
     auto dims_L16   = InitializeDims(ap);
-    datum_path      = ap->files.input_file; 
+    datum_path      = ap->files.input_file;
     dataset         = ap->demo_dataset;
     sample_pct      = ap->sample_percentage;
     num_iterations  = ap->num_iterations;

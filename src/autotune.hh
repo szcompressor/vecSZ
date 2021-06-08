@@ -2,7 +2,7 @@
 #define PSZ_TUNING_HH
 
 #include <iostream>
-#include "psz_dualquant_opt.hh"
+#include "dualquant.hh"
 #include "argument_parser/argparse.hh"
 #include "types.hh"
 #include "dimensions.hh"
@@ -66,7 +66,7 @@ double run_sample_blocks(argparse* ap, bool fine_massive, bool blocked, T* data,
                     PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
 #endif
             }
-        } 
+        }
     } else if (dims_L16[nDIM] == 3) {
         if (blocked) {
 #pragma omp parallel for
@@ -81,7 +81,7 @@ double run_sample_blocks(argparse* ap, bool fine_massive, bool blocked, T* data,
                     PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
 #endif
             }
-        } 
+        }
     }
     }//end iterations
     double sample_time = TIMER / (iterations); //end timing
@@ -121,7 +121,7 @@ int autotune_vector_len(argparse* ap, int* blksz, double* timing, bool fine_mass
 	blksz_256 = autotune_block_sizes<T,Q>(ap, &time_256, fine_massive, blocked, data, outlier, bcode, dims, ebs_L4);
 #ifdef AVX512
 	blksz_512 = autotune_block_sizes<T,Q>(ap, &time_512, fine_massive, blocked, data, outlier, bcode, dims, ebs_L4);
-	
+
 	if (time_512 < time_256) {
 		*blksz = blksz_512;
 		vecsz = 512;
@@ -134,9 +134,9 @@ int autotune_vector_len(argparse* ap, int* blksz, double* timing, bool fine_mass
 	*blksz = blksz_256;
 	vecsz = 256;
 #endif
-     
-    cout << "Best Performance: block_size = " << *blksz << ", vector_length = " << vecsz << ", sample_pct = " << ap->sample_percentage << ", num_iters = " << ap->num_iterations << endl;  
-	
+
+    cout << "Best Performance: block_size = " << *blksz << ", vector_length = " << vecsz << ", sample_pct = " << ap->sample_percentage << ", num_iters = " << ap->num_iterations << endl;
+
 	if (*blksz > 64 || *blksz < 8) *blksz = 64;
 	return vecsz;
 }

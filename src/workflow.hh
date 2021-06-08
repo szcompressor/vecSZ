@@ -5,7 +5,7 @@
 
 #include "utils/io.hh"
 #include "analysis.hh"
-#include "psz_dualquant_opt.hh"
+#include "dualquant.hh"
 #include "huffman_cpu.hh"
 #include "verify.hh"
 
@@ -70,7 +70,7 @@ void Compress(std::string&        finame,  //
    timer2 = high_resolution_clock::now(); // begin timing
    vecsz = autotune_vector_len<T,Q,B>(num_iterations, sample_pct, &blksz, &timing, fine_massive, blocked, dataset, dims[CAP], data, outlier, code, dims, ebs_L4);
    auto dims_L16 = InitializeDemoDims(dataset, dims[CAP], blksz);
-   double autotune_t = TIME3; 
+   double autotune_t = TIME3;
    cout << setprecision(6) << "Autotune Time: " << autotune_t << endl;
 #else
    auto dims_L16 = dims;
@@ -142,7 +142,7 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
                     }
                 }
             }
-        } 
+        }
     }
 }
     double tot_cx_time = TIME; //end timing
