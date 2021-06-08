@@ -64,7 +64,7 @@ $(BUILD_DIR)/%.cc.o: %.cc
 
 .PHONY: clean
 clean:
-	rm -r $(BUILD_DIR)
-	rm -r vecsz
+	rm -rf $(BUILD_DIR)
+	rm -rf vecsz
 
 -include $(DEPS)

@@ -14,61 +14,6 @@ namespace fm = pSZ::FineMassiveSimulation;
 
 // const size_t DICT_SIZE = 1024;
 const size_t DICT_SIZE = 4096;
-#if defined(_1D)
-#ifdef B4
-const int BLK = 4;
-#elif B6
-const int BLK = 6;
-#elif B8
-const int BLK = 8;
-#elif B16
-const int BLK = 16;
-#elif B32
-const int BLK = 32;
-#elif B64
-const int BLK = 64;
-#elif B128
-const int BLK = 128;
-#elif B256
-const int BLK = 256;
-#endif
-#elif defined(_2D)
-#ifdef B4
-const int BLK = 4;
-#elif B6
-const int BLK = 6;
-#elif B8
-const int BLK = 8;
-#elif B16
-const int BLK = 16;
-#elif B32
-const int BLK = 32;
-#elif B64
-const int BLK = 64;
-#elif B128
-const int BLK = 128;
-#elif B256
-const int BLK = 256;
-#endif
-#elif defined(_3D)
-#ifdef B4
-const int BLK = 4;
-#elif B6
-const int BLK = 6;
-#elif B8
-const int BLK = 8;
-#elif B16
-const int BLK = 16;
-#elif B32
-const int BLK = 32;
-#elif B64
-const int BLK = 64;
-#elif B128
-const int BLK = 128;
-#elif B256
-const int BLK = 256;
-#endif
-#endif
 
 int main(int argc, char** argv) {
     std::string eb_mode, dataset, datum_path;
@@ -139,7 +84,7 @@ int main(int argc, char** argv) {
     //for_each(argv, argv + 8, [](char* i) { cout << i << " "; });
     for_each(argv, argv + 8, [](auto i) { cout << i << " "; });
     cout << endl;
-    const int blk = BLK;
+    size_t blk = 64;
     auto eb_config  = new config_t(DICT_SIZE, mantissa, exponent);
 #ifdef AUTOTUNE
     auto dims_L16 = (argc == 8 || argc == 10) ? InitializeDemoDims(dataset, DICT_SIZE,blk):InitializeDims(DICT_SIZE,n_dim,d0,d1,d2,d3,blk);
@@ -157,12 +102,12 @@ int main(int argc, char** argv) {
     //    size_t c_byteSize;
     size_t num_outlier = 0;  // for calculating compression ratio
 
-    cout << "block size:\t" << BLK << endl;
+    cout << "block size:\t" << blk << endl;
     auto ebs_L4 = InitializeErrorBoundFamily(eb_config);
 
 #ifdef AUTOTUNE
-    fm::cx_sim<float, int, BLK>(datum_path, dataset, dims_L16, ebs_L4, num_outlier, num_iterations, sample_pct, if_dualquant, if_blocking, true);
+    fm::cx_sim<float, int>(datum_path, dataset, dims_L16, ebs_L4, num_outlier, blk, num_iterations, sample_pct, if_dualquant, if_blocking, true);
 #else
-    fm::cx_sim<float, int, BLK>(datum_path, dataset, dims_L16, ebs_L4, num_outlier, if_dualquant, if_blocking, true);
+    fm::cx_sim<float, int>(datum_path, dataset, dims_L16, ebs_L4, num_outlier, blk, if_dualquant, if_blocking, true);
 #endif
 }

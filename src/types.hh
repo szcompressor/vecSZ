@@ -19,9 +19,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "format.hh"
-#include "io.hh"
-#include "timer.hh"
+#include "utils/format.hh"
+#include "utils/io.hh"
+#include "utils/timer.hh"
 
 using namespace std;
 
@@ -53,31 +53,24 @@ typedef struct ErrorBoundConfigurator {
 
 double* InitializeErrorBoundFamily(struct ErrorBoundConfigurator* eb_config);
 
-/*
-2^-1  2^-2  2^-3
-10^-1
-2^-4  2^-5  2^-6
-10^-2
-2^-7  2^-8  2^-9
-10^-3
-2^-10 2^-11 2^-12 2^-13
-10^-4
-2^-14 2^-15 2^-16
-10^-5
-2^-17 2^-18 2^-19
-10^-6
-2^-20 2^-21 2^-22 2^-23
-10^-7
-2^-24 2^-25 2^-26
-10^-8
-2^-27 2^-28 2^-29
-10^-9
-2^-30 2^-31 2^-32 2^-33
-10^-10
-2^-34
- */
+typedef struct Stat {
+    double minimum{}, maximum{}, range{};
+    double PSNR{}, MSE{}, NRMSE{};
+    double coeff{};
+    double user_set_eb{}, max_abserr_vs_range{}, max_pwr_rel_abserr{};
 
-// static std::unordered_map<int8_t, int8_t> exp_dec2bin = {{-1, -4},  {-2, -7},  {-3, -10}, {-4, -14}, {-5, -17},
-//                                                         {-6, -20}, {-7, -24}, {-8, -27}, {-9, -30}, {-10, -34}};
+    size_t len{}, max_abserr_index{};
+    double max_abserr{};
+
+} stat_t;
+
+typedef struct Integer1  { int _0; }              Integer1;
+typedef struct Integer2  { int _0, _1; }          Integer2;
+typedef struct Integer3  { int _0, _1, _2; }      Integer3;
+typedef struct Integer4  { int _0, _1, _2, _3; }  Integer4;
+typedef struct UInteger1 { int _0; }             UInteger1;
+typedef struct UInteger2 { int _0, _1; }         UInteger2;
+typedef struct UInteger3 { int _0, _1, _2; }     UInteger3;
+typedef struct UInteger4 { int _0, _1, _2, _3; } UInteger4;
 
 #endif /* TYPES_HH */

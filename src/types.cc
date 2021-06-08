@@ -17,9 +17,9 @@
 #include <vector>
 
 #include "constants.hh"
-#include "format.hh"
-#include "io.hh"
-#include "timer.hh"
+#include "utils/format.hh"
+#include "utils/io.hh"
+#include "utils/timer.hh"
 #include "types.hh"
 
 using namespace std;
@@ -27,7 +27,7 @@ using namespace std;
 template <typename T>
 double GetDatumValueRange(string fname, size_t l)
 {
-    auto d    = io::ReadBinaryFile<T>(fname, l);
+    auto d    = io::ReadBinaryToNewArray<T>(fname, l);
     T    max_ = *std::max_element(d, d + l);
     T    min_ = *std::min_element(d, d + l);
     delete[] d;
@@ -65,28 +65,6 @@ size_t* InitializeDims(size_t cap, size_t n_dims, size_t dim0, size_t dim1, size
     return dims_L16;
 }
 
-// for example, binning needs to set new dimensions
-void SetDims(size_t* dims_L16, size_t new_dims[4])
-{
-    std::copy(new_dims, new_dims + 4, dims_L16);
-    int BLK;
-    if (dims_L16[nDIM] == 1) BLK = B_1d;
-    else if (dims_L16[nDIM] == 2)
-        BLK = B_2d;
-    else if (dims_L16[nDIM] == 3)
-        BLK = B_3d;
-    dims_L16[nBLK0] = (dims_L16[DIM0] - 1) / (size_t)BLK + 1;
-    dims_L16[nBLK1] = (dims_L16[DIM1] - 1) / (size_t)BLK + 1;
-    dims_L16[nBLK2] = (dims_L16[DIM2] - 1) / (size_t)BLK + 1;
-    dims_L16[nBLK3] = (dims_L16[DIM3] - 1) / (size_t)BLK + 1;
-    dims_L16[LEN]   = dims_L16[DIM0] * dims_L16[DIM1] * dims_L16[DIM2] * dims_L16[DIM3];
-}
-
-// typedef struct ErrorBoundConfigurator {
-//    int         capacity, radius;
-//    double      base, exp_base2, exp_base10;
-//    double      eb_base2, eb_base10, eb_final;
-//    std::string mode;
 ErrorBoundConfigurator::ErrorBoundConfigurator(int _capacity, double _precision, double _exponent, int _base)
 {
     capacity = _capacity;

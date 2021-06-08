@@ -9,8 +9,8 @@
 namespace pSZ {
 namespace PredictionDualQuantization {
 
-template <typename T, typename Q, int b>
-void c_lorenzo_1d1l(T* data, T* outlier, Q* bcode, size_t const* const dims_L16, double const* const ebs_L4, T* pred_err, T* comp_err, size_t b0, int blksz, int vector_reg) {
+template <typename T, typename Q>
+void c_lorenzo_1d1l(T* data, T* outlier, Q* bcode, size_t const* const dims_L16, double const* const ebs_L4, T* pred_err, T* comp_err, size_t b0, size_t blksz, int vector_reg) {
     auto   radius = static_cast<Q>(dims_L16[RADIUS]);
     size_t _idx0  = b0 * blksz;
 
@@ -178,7 +178,7 @@ if (vector_reg == 512) {
 	}
 }
 
-template <typename T, typename Q, int b>
+template <typename T, typename Q>
 void c_lorenzo_2d1l(T*                  data,
                     T*                  outlier,
                     Q*                  bcode,
@@ -487,7 +487,7 @@ if (vector_reg == 512) {
   }
 }
 
-template <typename T, typename Q, int b>
+template <typename T, typename Q>
 void c_lorenzo_3d1l(T*                  data,
                     T*                  outlier,
                     Q*                  bcode,
@@ -860,8 +860,8 @@ if (vector_reg == 512) {
   }
 }
 
-template <typename T, typename Q, int blksz>
-void x_lorenzo_1d1l(T* xdata, T* outlier, Q* bcode, size_t const* const dims_L16, double _2EB, size_t b0) {
+template <typename T, typename Q>
+void x_lorenzo_1d1l(T* xdata, T* outlier, Q* bcode, size_t const* const dims_L16, double _2EB, size_t b0, size_t blksz) {
     auto   radius = static_cast<Q>(dims_L16[RADIUS]);
     size_t _idx0  = b0 * blksz;
     for (size_t i0 = 0; i0 < blksz; i0++) {
@@ -877,8 +877,8 @@ void x_lorenzo_1d1l(T* xdata, T* outlier, Q* bcode, size_t const* const dims_L16
     }
 }
 
-template <typename T, typename Q, int blksz>
-void x_lorenzo_2d1l(T* xdata, T* outlier, Q* bcode, size_t const* const dims_L16, double _2EB, size_t b0, size_t b1) {
+template <typename T, typename Q>
+void x_lorenzo_2d1l(T* xdata, T* outlier, Q* bcode, size_t const* const dims_L16, double _2EB, size_t b0, size_t b1, size_t blksz) {
     T _s[blksz + 1][blksz + 1];
     memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(T));
     auto radius = static_cast<Q>(dims_L16[RADIUS]);
@@ -899,7 +899,7 @@ void x_lorenzo_2d1l(T* xdata, T* outlier, Q* bcode, size_t const* const dims_L16
     }
 }
 
-template <typename T, typename Q, int blksz>
+template <typename T, typename Q>
 void x_lorenzo_3d1l(T*                  xdata,
                     T*                  outlier,
                     Q*                  bcode,
@@ -907,7 +907,8 @@ void x_lorenzo_3d1l(T*                  xdata,
                     double              _2EB,
                     size_t              b0,
                     size_t              b1,
-                    size_t              b2) {
+                    size_t              b2,
+                    size_t              blksz) {
     T _s[blksz + 1][blksz + 1][blksz + 1];
     memset(_s, 0, (blksz + 1) * (blksz + 1) * (blksz + 1) * sizeof(T));
     auto radius = static_cast<Q>(dims_L16[RADIUS]);

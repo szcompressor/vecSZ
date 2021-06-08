@@ -3,10 +3,8 @@
 #ifndef PSZ_WORKFLOW_HH
 #define PSZ_WORKFLOW_HH
 
-#include "io.hh"
+#include "utils/io.hh"
 #include "analysis.hh"
-#include "psz_14.hh"
-#include "psz_14blocked.hh"
 #include "psz_dualquant_opt.hh"
 #include "huffman_cpu.hh"
 #include "verify.hh"
@@ -14,16 +12,6 @@
 
 #include "autotune.hh"
 
-#ifdef _3D
-#define CN_OPS 15
-#define LN_OPS 18
-#elif _2D
-#define CN_OPS 11
-#define LN_OPS 14
-#elif _1D
-#define CN_OPS 9
-#define LN_OPS 12
-#endif
 
 
 namespace PdQ  = pSZ::PredictionDualQuantization;
@@ -48,12 +36,13 @@ namespace FineMassiveSimulation {
 
 namespace __loop {}
 
-template <typename T, typename Q, size_t B>
+template <typename T, typename Q>
 void cx_sim(std::string&        finame,  //
             std::string const&  dataset,
             size_t const* const dims,
             double const* const ebs_L4,
             size_t&             num_outlier,
+            size_t              B,
 #ifdef AUTOTUNE
 	    int			num_iterations,
 	    float		sample_pct,
@@ -65,8 +54,8 @@ void cx_sim(std::string&        finame,  //
     timer = high_resolution_clock::now(); // begin timing
     size_t len = dims[LEN];
 
-    auto __attribute__((aligned(64))) data     = io::ReadBinaryFile<T>(finame, len);
-    auto __attribute__((aligned(64))) data_cmp = io::ReadBinaryFile<T>(finame, len);
+    auto __attribute__((aligned(64))) data     = io::ReadBinaryToNewArray<T>(finame, len);
+    auto __attribute__((aligned(64))) data_cmp = io::ReadBinaryToNewArray<T>(finame, len);
 
     T* pred_err = nullptr;
     T* comp_err = nullptr;
@@ -103,6 +92,21 @@ void cx_sim(std::string&        finame,  //
    auto dims_L16 = dims;
 #endif
 
+int CN_OPS, LN_OPS;
+if (dims_L16[nDIM] == 3) {
+    CN_OPS = 15;
+    LN_OPS = 18;
+}
+else if (dims_L16[nDIM] == 2) {
+    CN_OPS = 11;
+    LN_OPS = 14;
+}
+else {
+    CN_OPS = 9;
+    LN_OPS = 12;
+}
+
+
     // TODO omp version
     now = high_resolution_clock::now(); // begin timing
     const int ITERS = 1;
@@ -118,15 +122,11 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
             for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
                 if (fine_massive)
 #ifdef REPBLK
-                    PdQ::c_lorenzo_1d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, blksz, vecsz);
+                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, blksz, vecsz);
 #else
-                    PdQ::c_lorenzo_1d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, blksz, vecsz);
+                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, blksz, vecsz);
 #endif
-                else
-                    PQRb::c_lorenzo_1d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0);
             }
-        } else {
-            PQRs::c_lorenzo_1d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err);
         }
     } else if (dims_L16[nDIM] == 2) {
         if (blocked) {
@@ -135,18 +135,13 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
                 for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
                     if (fine_massive)
 #ifdef REPBLK
-                        PdQ::c_lorenzo_2d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, 0, blksz, vecsz);
+                        PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, 0, blksz, vecsz);
 #else
-                        PdQ::c_lorenzo_2d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, b1, blksz, vecsz);
+                        PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, b1, blksz, vecsz);
 #endif
-
-                    else
-                        PQRb::c_lorenzo_2d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, b1);
                 }
             }
 
-        } else {
-            PQRs::c_lorenzo_2d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err);
         }
     } else if (dims_L16[nDIM] == 3) {
         if (blocked) {
@@ -156,18 +151,14 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
                     for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
                         if (fine_massive)
 #ifdef REPBLK
-                            PdQ::c_lorenzo_3d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, 0, 0, blksz, vecsz);
+                            PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, 0, 0, 0, blksz, vecsz);
 #else
-                            PdQ::c_lorenzo_3d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, b1, b2, blksz, vecsz);
+                            PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, b1, b2, blksz, vecsz);
 #endif
-                        else
-                            PQRb::c_lorenzo_3d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err, b0, b1, b2);
                     }
                 }
             }
-        } else {
-            PQRs::c_lorenzo_3d1l<T, Q, B>(data, outlier, code, dims_L16, ebs_L4, pred_err, comp_err);
-        }
+        } 
     }
 }
     double tot_cx_time = TIME; //end timing
@@ -243,12 +234,12 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
 #pragma omp parallel for
             for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
                 if (fine_massive)
-                    PdQ::x_lorenzo_1d1l<T, Q, B>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0);
+                    PdQ::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0);
                 else
-                    PQRb::x_lorenzo_1d1l<T, Q, B>(xdata, outlier, code, dims_L16, ebs_L4, b0);  // TODO __2EB
+                    PQRb::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4, b0);  // TODO __2EB
             }
         } else {
-            PQRs::x_lorenzo_1d1l<T, Q, B>(xdata, outlier, code, dims_L16, ebs_L4);  // TODO __2EB
+            PQRs::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4);  // TODO __2EB
         }
     }
     if (dims_L16[nDIM] == 2) {
@@ -257,14 +248,14 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
             for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) {
                 for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
                     if (fine_massive)
-                        PdQ::x_lorenzo_2d1l<T, Q, B>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1);
+                        PdQ::x_lorenzo_2d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1);
                     else
-                        PQRb::x_lorenzo_2d1l<T, Q, B>(xdata, outlier, code, dims_L16, ebs_L4, b0, b1);  // TODO __2EB
+                        PQRb::x_lorenzo_2d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4, b0, b1);  // TODO __2EB
                 }
             }
 
         } else {
-            PQRs::x_lorenzo_2d1l<T, Q, B>(xdata, outlier, code, dims_L16, ebs_L4);  // TODO __2EB
+            PQRs::x_lorenzo_2d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4);  // TODO __2EB
         }
     } else if (dims_L16[nDIM] == 3) {
         if (blocked) {
@@ -273,14 +264,14 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
                 for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) {
                     for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
                         if (fine_massive)
-                            PdQ::x_lorenzo_3d1l<T, Q, B>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1, b2);
+                            PdQ::x_lorenzo_3d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1, b2);
                         else
-                            PQRb::x_lorenzo_3d1l<T, Q, B>(xdata, outlier, code, dims_L16, ebs_L4, b0, b1, b2);  // TODO __2EB
+                            PQRb::x_lorenzo_3d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4, b0, b1, b2);  // TODO __2EB
                     }
                 }
             }
         } else {
-            PQRs::x_lorenzo_3d1l<T, Q, B>(xdata, outlier, code, dims_L16, ebs_L4);  // TODO __2EB
+            PQRs::x_lorenzo_3d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4);  // TODO __2EB
         }
     }
 
