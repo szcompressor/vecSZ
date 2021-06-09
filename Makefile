@@ -36,7 +36,6 @@ ifeq ($(vector_support), AVX2)
 	CPPFLAGS += -mavx2 -mavx -march=native -DAVX -DAVX2 -DMAX_VECTOR_LENGTH=256 #-fopt-info-all=avx_info.txt #enable AVX2 generic
 endif
 ifeq ($(vector_support), AVX512)
-	MAX_VECTOR_LENGTH = 512
 	CPPFLAGS += -mavx2 -mavx -mavx512f -mavx512vl -march=native -DAVX -DAVX2 -DAVX512 -DMAX_VECTOR_LENGTH=512 #-fopt-info-all=avx_info.txt -lpapi #Intel Gold
 endif
 
