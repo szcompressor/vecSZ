@@ -22,7 +22,6 @@ int main(int argc, char** argv) {
     // parse command line arguments
     auto ap = new ArgParse();
     ap->ParseVecszArgs(argc, argv);
-    ap->PrintArgs();
 
     size_t blk = ap->block_size;
     const size_t DICT_SIZE = ap->dict_size;
@@ -42,9 +41,12 @@ int main(int argc, char** argv) {
 
     auto ebs_L4 = InitializeErrorBoundFamily(eb_config);
 
+
+    if (ap->verbose) ap->PrintArgs();
+
 #ifdef AUTOTUNE
-    vecsz::interface::Compress<float, int>(datum_path, dataset, dims_L16, ebs_L4, nnz_outlier, blk, num_iterations, sample_pct, true, true, true);
+    vecsz::interface::Compress<float, int>(datum_path, dataset, dims_L16, ebs_L4, nnz_outlier, blk, num_iterations, sample_pct, true);
 #else
-    vecsz::interface::Compress<float, int>(datum_path, dataset, dims_L16, ebs_L4, nnz_outlier, blk, true, true, true);
+    vecsz::interface::Compress<float, int>(datum_path, dataset, dims_L16, ebs_L4, nnz_outlier, blk, true);
 #endif
 }
