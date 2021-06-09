@@ -1,7 +1,8 @@
 // 200211
 
-#ifndef PSZ_WORKFLOW_HH
-#define PSZ_WORKFLOW_HH
+#ifndef WORKFLOW_HH
+#define WORKFLOW_HH
+
 
 #include "utils/io.hh"
 #include "analysis.hh"
@@ -13,19 +14,12 @@
 
 
 
-namespace PdQ  = pSZ::PredictionDualQuantization;
+namespace pq  = vecsz::predictor_quantizer;
 namespace DV = DesignVerification;
 
 /* Used for timing */
 using namespace std;
 using namespace std::chrono;
-
-high_resolution_clock::time_point now = high_resolution_clock::now();
-high_resolution_clock::time_point timer = high_resolution_clock::now();
-high_resolution_clock::time_point timer2 = high_resolution_clock::now();
-#define TIME duration_cast<duration<double>>(high_resolution_clock::now() - now).count()
-#define TIME2 duration_cast<duration<double>>(high_resolution_clock::now() - timer).count()
-#define TIME3 duration_cast<duration<double>>(high_resolution_clock::now() - timer2).count()
 
 namespace vecsz {
 
@@ -34,7 +28,7 @@ namespace interface {
 namespace __loop {}
 
 template <typename T, typename Q>
-void Compress(std::string&        finame,  //
+void Compress(std::string&        finame,  
               std::string const&  dataset,
               size_t const* const dims,
               double const* const ebs_L4,
@@ -44,19 +38,18 @@ void Compress(std::string&        finame,  //
 	          int                 num_iterations,
 	          float               sample_pct,
 #endif
-              bool                fine_massive = false,
-              bool                blocked      = false,
-              bool                show_histo   = false) {
+              bool                show_histo   = false) 
+{
 
-    timer = high_resolution_clock::now(); // begin timing
+    auto tstart = hires::now(); // begin timing
     size_t len = dims[LEN];
 
-    auto __attribute__((aligned(64))) data     = io::ReadBinaryToNewArray<T>(finame, len);
-    auto __attribute__((aligned(64))) data_cmp = io::ReadBinaryToNewArray<T>(finame, len);
-
-    auto __attribute__((aligned(64))) xdata   = new T[len]();
-    auto __attribute__((aligned(64))) outlier = new T[len]();
-    auto __attribute__((aligned(64))) code    = new Q[len]();
+    alignas(32) auto data     = io::ReadBinaryToNewArray<T>(finame, len);
+    alignas(32) auto data_cmp = io::ReadBinaryToNewArray<T>(finame, len);
+    
+    alignas(32) auto xdata   = new T[len]();
+    alignas(32) auto outlier = new T[len]();
+    alignas(32) auto code    = new Q[len]();
 
     ////////////////////////////////////////////////////////////////////////////////
     // start of compression
@@ -67,97 +60,78 @@ void Compress(std::string&        finame,  //
     vecsz = 512;
 #endif
 #ifdef AUTOTUNE
-   timer2 = high_resolution_clock::now(); // begin timing
+   astart = hires::now(); // begin timing
    vecsz = autotune_vector_len<T,Q,B>(num_iterations, sample_pct, &blksz, &timing, fine_massive, blocked, dataset, dims[CAP], data, outlier, code, dims, ebs_L4);
    auto dims_L16 = InitializeDemoDims(dataset, dims[CAP], blksz);
-   double autotune_t = TIME3;
+   aend = hires::now(); // begin timing
+   double autotune_t = static_cast<duration_t>(aend - astart).count();
    cout << setprecision(6) << "Autotune Time: " << autotune_t << endl;
 #else
-   auto dims_L16 = dims;
+    auto dims_L16 = dims;
 #endif
 
-int CN_OPS, LN_OPS;
-if (dims_L16[nDIM] == 3) {
-    CN_OPS = 15;
-    LN_OPS = 18;
-}
-else if (dims_L16[nDIM] == 2) {
-    CN_OPS = 11;
-    LN_OPS = 14;
-}
-else {
-    CN_OPS = 9;
-    LN_OPS = 12;
-}
+    int CN_OPS, LN_OPS;
+    if (dims_L16[nDIM] == 3) {
+        CN_OPS = 15;
+        LN_OPS = 18;
+    }
+    else if (dims_L16[nDIM] == 2) {
+        CN_OPS = 11;
+        LN_OPS = 14;
+    }
+    else {
+        CN_OPS = 9;
+        LN_OPS = 12;
+    }
 
-
-    // TODO omp version
-    now = high_resolution_clock::now(); // begin timing
-    const int ITERS = 1;
-//    int retval = PAPI_hl_region_begin("computation");
-//    if ( retval != PAPI_OK ) {
-//	cerr << "PAPI Error in region begin\n" << endl;
-//	exit(1);
-//    }
-for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression longer for profiling
-    if (dims_L16[nDIM] == 1) {
-        if (blocked) {
-#pragma omp parallel for
-            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
-                if (fine_massive)
-#ifdef REPBLK
-                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, 0, blksz, vecsz);
-#else
-                    PdQ::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
-#endif
+    auto cstart = hires::now(); // begin timing
+    if (dims_L16[nDIM] == 1) 
+    {
+        #pragma omp parallel for
+        for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+        {
+            pq::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
+        }
+    } 
+    else if (dims_L16[nDIM] == 2) 
+    {
+        #pragma omp parallel for
+        for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+        {
+            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+            {
+                pq::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
             }
         }
-    } else if (dims_L16[nDIM] == 2) {
-        if (blocked) {
-#pragma omp parallel for
-            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) {
-                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
-                    if (fine_massive)
-#ifdef REPBLK
-                        PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, 0, 0, blksz, vecsz);
-#else
-                        PdQ::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
-#endif
-                }
-            }
-
-        }
-    } else if (dims_L16[nDIM] == 3) {
-        if (blocked) {
-#pragma omp parallel for
-            for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++) {
-                for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) {
-                    for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
-                        if (fine_massive)
-#ifdef REPBLK
-                            PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, 0, 0, 0, blksz, vecsz);
-#else
-                            PdQ::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
-#endif
-                    }
+    } 
+    else if (dims_L16[nDIM] == 3) 
+    {
+        #pragma omp parallel for
+        for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++) 
+        {
+            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+            {
+                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+                {
+                    pq::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
                 }
             }
         }
     }
-}
-    double tot_cx_time = TIME; //end timing
+
+    auto cend = hires::now(); //end timing
+    double tot_ctime = static_cast<duration_t>(cend - cstart).count();
     double n_iterations = dims_L16[DIM0] * dims_L16[DIM1] * dims_L16[DIM2]; //perform op for each element in data
-    double CGflops_s = ((n_iterations * CN_OPS)/ tot_cx_time) / pow(2,30); //n_iterations * n_ops / time
-    double LGflops_s = ((n_iterations * LN_OPS)/ tot_cx_time) / pow(2,30); //n_iterations * n_ops / time
+    double CGflops_s = ((n_iterations * CN_OPS)/ tot_ctime) / pow(2,30); //n_iterations * n_ops / time
+    double LGflops_s = ((n_iterations * LN_OPS)/ tot_ctime) / pow(2,30); //n_iterations * n_ops / time
 //    retval = PAPI_hl_region_end("computation");
 //    if ( retval != PAPI_OK ) {
 //	cerr << "PAPI Error in region begin\n" << endl;
 //	exit(1);
 //   }
-    cout << "Total PRED/QUANT time: " << tot_cx_time << "s" << endl;
-    cout << "VEC AVG PRED/QUANT time: " << tot_cx_time/ITERS << "s" << endl;
-    cout << setprecision(6) << "Conservative GFLOPS: " << CGflops_s/ITERS << endl;
-    cout << setprecision(6) << "Leniant GFLOPS: " << LGflops_s/ITERS << endl;
+    cout << "Total PRED/QUANT time: " << tot_ctime << "s" << endl;
+    cout << setprecision(6) << "Conservative GFLOPS: " << CGflops_s << endl;
+    cout << setprecision(6) << "Leniant GFLOPS: " << LGflops_s << endl;
 
     //    io::write_binary_file(code, len, new string("/Users/jtian/WorkSpace/cuSZ/src/CLDMED.bincode"));
 
@@ -166,12 +140,12 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
   size_t outSize = 0;
   cout << "Encoding prediction data..." << endl;
 
-  now = high_resolution_clock::now(); // begin timing
+  auto hstart = hires::now(); // begin timing
   DV::HuffmanTree* tree = DV::createDefaultHuffmanTree();
   DV::encode_withTree(tree,code,len,&out,&outSize);
-  double tot_huffman_time = TIME; //end timing
+  auto hend = hires::now();
+  double tot_huffman_time = static_cast<duration_t>(hend - hstart).count(); //end timing
   cout << "Total HUFFMAN time: " << tot_huffman_time << "s" << endl;
-  cout << "Avg HUFFMAN time: " << tot_huffman_time/ITERS << "s" << endl;
 
   //int huff_depth;
   //DV::hMD(tree,code,len,&huff_depth);
@@ -192,7 +166,8 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
 	float pct_outlier = ((float)num_outlier/len) * 100;
 	float compressionRatio = (len*sizeof(float))/(float)(outSize + num_outlier);
 */
-    double tot_sim_time = TIME2; //end timing
+    auto tend = hires::now();
+    double tot_sim_time = static_cast<duration_t>(tend - tstart).count(); //end timing
 	cout << "Total Runtime: " << tot_sim_time << "s" << endl;
 //	cout << setprecision(5) << "Compression Ratio: " << compressionRatio << endl;
 //	cout << "Number Outliers: " << num_outlier << endl;
@@ -210,52 +185,39 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
 	// huffman decode
 	DesignVerification::decode_withTree(tree,out,len,code);
 
-    if (dims_L16[nDIM] == 1) {
-        if (blocked) {
-#pragma omp parallel for
-            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
-                if (fine_massive)
-                    PdQ::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0);
-                else
-                    PQRb::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4, b0);  // TODO __2EB
-            }
-        } else {
-            PQRs::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4);  // TODO __2EB
+    if (dims_L16[nDIM] == 1) 
+    {
+        #pragma omp parallel for
+        for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+        {
+            pq::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0);
         }
     }
-    if (dims_L16[nDIM] == 2) {
-        if (blocked) {
-#pragma omp parallel for
-            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) {
-                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
-                    if (fine_massive)
-                        PdQ::x_lorenzo_2d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1);
-                    else
-                        PQRb::x_lorenzo_2d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4, b0, b1);  // TODO __2EB
-                }
+    else if (dims_L16[nDIM] == 2) 
+    {
+        #pragma omp parallel for
+        for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+        {
+            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+            {
+                pq::x_lorenzo_2d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1);
             }
-
-        } else {
-            PQRs::x_lorenzo_2d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4);  // TODO __2EB
         }
-    } else if (dims_L16[nDIM] == 3) {
-        if (blocked) {
-#pragma omp parallel for
-            for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++) {
-                for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) {
-                    for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) {
-                        if (fine_massive)
-                            PdQ::x_lorenzo_3d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1, b2);
-                        else
-                            PQRb::x_lorenzo_3d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4, b0, b1, b2);  // TODO __2EB
-                    }
+    } 
+    else if (dims_L16[nDIM] == 3) 
+    {
+        #pragma omp parallel for
+        for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++) 
+        {
+            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+            {
+                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+                {
+                    pq::x_lorenzo_3d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1, b2);
                 }
             }
-        } else {
-            PQRs::x_lorenzo_3d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4);  // TODO __2EB
         }
     }
-
 
     if (show_histo) {
         Analysis::histogram(std::string("original datum"), data_cmp, len, 16);
@@ -266,14 +228,12 @@ for (int i = 0; i < ITERS; i++) { //FOR TESTING ONLY, REMOVE... make compression
     cout << setprecision(5) << "error bound: " << ebs_L4[EB] << endl;
 	cout << setprecision(5) << "Compression Ratio: " << compressionRatio << endl;
 
-    if (fine_massive) {
-        io::WriteBinaryFile(xdata, len, new string(finame + ".psz.cusz.out"));
-    }
+    io::WriteBinaryFile(xdata, len, new string(finame + ".psz.cusz.out"));
     Analysis::VerifyData(xdata, data_cmp, len, 1);
 */
 }
 
-}  // namespace FineMassiveSimulation
-}  // namespace pSZ
+}  // namespace interface
+}  // namespace vecsz
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef PSZ_DUALQUANT_OPT_HH
-#define PSZ_DUALQUANT_OPT_HH
+#ifndef DUALQUANT_HH
+#define DUALQUANT_HH
 
 #include <cstddef>
 #include <immintrin.h> //avx intrinsics
@@ -7,8 +7,8 @@
 #include "types.hh"
 #include "constants.hh"
 
-namespace pSZ {
-namespace PredictionDualQuantization {
+namespace vecsz {
+namespace predictor_quantizer {
 
 template <typename T, typename Q>
 void c_lorenzo_1d1l(T* data, T* outlier, Q* bcode, size_t const* const dims_L16, double const* const ebs_L4, size_t b0, size_t blksz, int vector_reg) {
@@ -843,7 +843,7 @@ void x_lorenzo_3d1l(T*                  xdata,
     }
 }
 
-}  // namespace PredictionDualQuantization
-}  // namespace pSZ
+}  // namespace predictor_quantizer
+}  // namespace vecsz
 
 #endif
