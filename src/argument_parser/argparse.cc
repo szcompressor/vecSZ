@@ -66,7 +66,7 @@ void ArgParse::PrintArgs()
 	cout << log_cfg << "Vector Length:       " << vector_length                                                << endl;
 	cout << log_cfg << "Block Size:          " << block_size                                                   << endl;
 	cout << log_cfg << "Verbose?             " << string((verbose) ? "Yes" : "No")                             << endl;
-	cout << log_cfg << "Autotune?            " << string((autotune) ? "Yes" : "No")                            << endl;
+	cout << log_cfg << "Autotune?            " << string((szwf.autotune) ? "Yes" : "No")                       << endl;
 	cout << log_cfg << "Num. Iterations:     " << num_iterations                                               << endl;
 	cout << log_cfg << "Sample Percentage:   " << sample_percentage                                            << endl;
 }
@@ -147,13 +147,13 @@ void ArgParse::CheckArgs()
 		szwf.lossy_decompress   = false;
 	}
 
-	if (not autotune and ((num_iterations >= 0) or (sample_percentage >= 0)))
+	if (not szwf.autotune and ((num_iterations >= 0) or (sample_percentage >= 0)))
 	{
 		cerr << log_err << "Autotune option not specified! Specify `-a` or `--autotune` to use `--sample` or `--num-iter` options." << endl;
 		abort = true;
 	}
 
-	if (autotune)
+	if (szwf.autotune)
 	{
 		if ((num_iterations <= 0) and (sample_percentage <= 0))
 		{
@@ -414,7 +414,7 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
 				    break;
 				case 'a':
 				tag_autotune:
-				    autotune = true;
+				    szwf.autotune = true;
 				    num_iterations = 10;
 				    sample_percentage = 1.0;
 				    break;

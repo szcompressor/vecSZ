@@ -19,65 +19,57 @@ namespace pq  = vecsz::predictor_quantizer;
 /*       - TUNE PREFETCHING         */
 
 template <typename T, typename Q>
-double run_sample_blocks(argparse* ap, T* data, T* outlier, Q* code, size_t const* const dims, double const* const ebs_L4, T* pred_err, T* comp_err)
+double run_sample_blocks(argparse* ap, T* data, T* outlier, Q* code, size_t const* const dims, double const* const ebs_L4)
 {
     hires::time_point start;
     auto num_iterations = ap->num_iterations;
     auto sample_pct     = ap->sample_percentage;
     auto blksz          = ap->block_size;
     auto vecsz          = ap->vector_length;
-    auto dims_L16 = InitializeDims(ap);
-
-
-
-    //cout << "Testing Block Size = " << blksz << ", Vector Registers = " << vecsz << endl;
+    auto dims_L16       = InitializeDims(ap);
 
     size_t nblocks  = (dims_L16[nBLK0] * dims_L16[nBLK1] * dims_L16[nBLK2] * dims_L16[nBLK3]);
-    size_t nsamples = (sample_pct * 0.01) * nblocks + 1;
-    //cout << "Number of Samples: " << nsamples << endl;
+    size_t nsamples = (sample_pct / 100) * nblocks + 1;
 
     int iterations = num_iterations;
-    for (int i = 0; i < iterations + 1; i++) {
-	srand(1);
-    if (i == 1) start = hires::now(); //begin timing
+    for (int i = 0; i < iterations + 1; i++) 
+    {
+        srand(1);
+        if (i == 1) start = hires::now(); //begin timing
 
-    if (dims_L16[nDIM] == 1) 
-    {
-        #pragma omp parallel for
-        for (size_t n = 0; n < nsamples; n++) 
+        if (dims_L16[nDIM] == 1) 
         {
-            size_t b0 = rand() % dims_L16[nBLK0];
-            pq::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
-        }
-    } else if (dims_L16[nDIM] == 2) 
-    {
-        #pragma omp parallel for
-        for (size_t n = 0; n < nsamples; n++) 
+            #pragma omp parallel for
+            for (size_t n = 0; n < nsamples; n++) 
+            {
+                size_t b0 = rand() % dims_L16[nBLK0];
+                pq::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
+            }
+        } else if (dims_L16[nDIM] == 2) 
         {
-            size_t b0 = rand() % dims_L16[nBLK0];
-            size_t b1 = rand() % dims_L16[nBLK1];
-            pq::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
-        }
-    } 
-    else if (dims_L16[nDIM] == 3) 
-    {
-        #pragma omp parallel for
-        for (size_t n = 0; n < nsamples; n++) 
+            #pragma omp parallel for
+            for (size_t n = 0; n < nsamples; n++) 
+            {
+                size_t b0 = rand() % dims_L16[nBLK0];
+                size_t b1 = rand() % dims_L16[nBLK1];
+                pq::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
+            }
+        } 
+        else if (dims_L16[nDIM] == 3) 
         {
-            size_t b0 = rand() % dims_L16[nBLK0];
-            size_t b1 = rand() % dims_L16[nBLK1];
-            size_t b2 = rand() % dims_L16[nBLK2];
-            pq::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
+            #pragma omp parallel for
+            for (size_t n = 0; n < nsamples; n++) 
+            {
+                size_t b0 = rand() % dims_L16[nBLK0];
+                size_t b1 = rand() % dims_L16[nBLK1];
+                size_t b2 = rand() % dims_L16[nBLK2];
+                pq::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
+            }
         }
-    }
     }//end iterations
 
     auto end = hires::now();
-    double sample_time = static_cast<duration_t>(end - start).count() / (iterations); //end timing
-
-    //printf("\tAverage Sample Duration: %0.6f\n", sample_time);
-
-    return sample_time;
+    return static_cast<duration_t>(end - start).count() / (iterations); //end timing
 }
 
 template <typename T, typename Q>
@@ -124,7 +116,8 @@ int autotune_vector_len(argparse* ap, int* blksz, double* timing, T* data, T* ou
 	vecsz = 256;
 #endif
 
-    cout << "Best Performance: block_size = " << *blksz << ", vector_length = " << vecsz << ", sample_pct = " << ap->sample_percentage << ", num_iters = " << ap->num_iterations << endl;
+    LogAll(log_cfg, "sample percentage:", ap->sample_percentage,"number repetitions:",ap->num_iterations);
+    LogAll(log_cfg, "best performance --", "block size:",*blksz,"vector length:",vecsz);
 
 	if (*blksz > 64 || *blksz < 8) *blksz = 64;
 	return vecsz;

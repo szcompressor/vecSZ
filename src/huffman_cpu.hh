@@ -14,6 +14,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "utils/format.hh"
+
 using namespace std;
 
 namespace DesignVerification {
@@ -250,12 +252,12 @@ void initHuffman(HuffmanTree* huffmanTree, const int* s, size_t length) {
             qinsert(huffmanTree, new_node(huffmanTree, freq[i], i, 0, 0));
         }
     }
-        cout << "minimal freq\t" << minimal << endl;
-        cout << "minimal freq%\t" << static_cast<double>(minimal) / length << endl;
-        cout << "minimal freq reciprocal\t" << length / static_cast<double>(minimal) << endl;
-        cout << "maximal freq\t" << maximal << endl;
-        cout << "maximal freq%\t" << static_cast<double>(maximal) / length << endl;
-        cout << "maximal freq reciprocal\t" << length / static_cast<double>(maximal) << endl;
+        LogAll(log_dbg, "minimal freq\t", minimal);
+        LogAll(log_dbg, "minimal freq%\t", static_cast<double>(minimal) / length);
+        LogAll(log_dbg, "minimal freq reciprocal\t", length / static_cast<double>(minimal));
+        LogAll(log_dbg, "maximal freq\t", maximal);
+        LogAll(log_dbg, "maximal freq%\t", static_cast<double>(maximal) / length);
+        LogAll(log_dbg, "maximal freq reciprocal\t", length / static_cast<double>(maximal));
 		FILE* fp = fopen("huffman_freq.csv","wb");
 		fwrite(freq,sizeof(size_t),huffmanTree->allNodes,fp);
 		fclose(fp);

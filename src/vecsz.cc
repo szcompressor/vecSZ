@@ -21,32 +21,8 @@ int main(int argc, char** argv) {
 
     // parse command line arguments
     auto ap = new ArgParse();
+    LogAll(log_info,"parsing command-line args");
     ap->ParseVecszArgs(argc, argv);
 
-    size_t blk = ap->block_size;
-    const size_t DICT_SIZE = ap->dict_size;
-
-    auto eb_config  = new config_t(DICT_SIZE, eb);
-    auto dims_L16   = InitializeDims(ap);
-    datum_path      = ap->files.input_file;
-    dataset         = ap->demo_dataset;
-    sample_pct      = ap->sample_percentage;
-    num_iterations  = ap->num_iterations;
-    eb_mode         = ap->mode;
-
-    if (eb_mode == "r2r") {  // as of C++ 14, string is directly comparable?
-        double value_range = GetDatumValueRange<float>(datum_path, dims_L16[LEN]);
-        eb_config->ChangeToRelativeMode(value_range);
-    }
-
-    auto ebs_L4 = InitializeErrorBoundFamily(eb_config);
-
-
-    if (ap->verbose) ap->PrintArgs();
-
-#ifdef AUTOTUNE
-    vecsz::interface::Compress<float, int>(datum_path, dataset, dims_L16, ebs_L4, nnz_outlier, blk, num_iterations, sample_pct, true);
-#else
-    vecsz::interface::Compress<float, int>(datum_path, dataset, dims_L16, ebs_L4, nnz_outlier, blk, true);
-#endif
+    vecsz::interface::Compress<float, int>(ap, nnz_outlier, true);
 }

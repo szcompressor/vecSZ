@@ -1,6 +1,10 @@
 #ifndef ARGPARSE_HH
 #define ARGPARSE_HH
 
+#ifndef MAX_VECTOR_LENGTH
+#define MAX_VECTOR_LENGTH -1
+#endif
+
 #include <cstdlib>
 #include <iostream>
 #include <regex>
@@ -16,6 +20,7 @@ struct SZWorkflow {
 	bool lossy_compress{false};
 	bool lossy_decompress{false};
 	bool lossy_dryrun{false};
+	bool autotune{false};
 };
 
 struct fileNames {
@@ -53,7 +58,6 @@ class ArgParse {
 		int      num_iterations{-1};
 
 		bool verbose{false};
-		bool autotune{false};
 
 		static void vecszDoc();
 

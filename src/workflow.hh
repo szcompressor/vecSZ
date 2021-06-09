@@ -4,6 +4,7 @@
 #define WORKFLOW_HH
 
 
+#include "argument_parser/argparse.hh"
 #include "utils/io.hh"
 #include "analysis.hh"
 #include "dualquant.hh"
@@ -25,50 +26,52 @@ namespace vecsz {
 
 namespace interface {
 
-namespace __loop {}
-
 template <typename T, typename Q>
-void Compress(std::string&        finame,  
-              std::string const&  dataset,
-              size_t const* const dims,
-              double const* const ebs_L4,
-              size_t&             num_outlier,
-              size_t              B,
-#ifdef AUTOTUNE
-	          int                 num_iterations,
-	          float               sample_pct,
-#endif
-              bool                show_histo   = false) 
+void Compress(argparse* ap,
+              size_t&   num_outlier,
+              bool      show_histo   = false) 
 {
+    std::string const& dataset   = ap->demo_dataset;
+    std::string& finame          = ap->files.input_file;
+    auto dims_L16                = InitializeDims(ap);
+    auto eb_config               = new config_t(ap->dict_size, ap->eb);
+    float sample_pct             = ap->sample_percentage;
+    size_t len                   = dims_L16[LEN];
+    int blksz                    = ap->block_size;
+    int vecsz                    = ap->vector_length;
+    int num_iterations           = ap->num_iterations;
 
-    auto tstart = hires::now(); // begin timing
-    size_t len = dims[LEN];
-
-    alignas(32) auto data     = io::ReadBinaryToNewArray<T>(finame, len);
-    alignas(32) auto data_cmp = io::ReadBinaryToNewArray<T>(finame, len);
-    
     alignas(32) auto xdata   = new T[len]();
     alignas(32) auto outlier = new T[len]();
     alignas(32) auto code    = new Q[len]();
+
+    if (ap->mode == "r2r") 
+    {
+        double value_range = GetDatumValueRange<float>(finame, dims_L16[LEN]);
+        eb_config->ChangeToRelativeMode(value_range);
+    }
+    double const* const ebs_L4 = InitializeErrorBoundFamily(eb_config);
+    auto tstart = hires::now(); // begin timing
+    LogAll(log_info, "load", finame, len * (ap->dtype == "f32" ? sizeof(float) : sizeof(double)), "bytes,", ap->dtype);
+    auto ldstart = hires::now(); 
+    alignas(32) auto data     = io::ReadBinaryToNewArray<T>(finame, len);
+    auto ldend   = hires::now(); 
+    LogAll(log_dbg, "time loading datum:", static_cast<duration_t>(ldend - ldstart).count(), "sec");
+    
 
     ////////////////////////////////////////////////////////////////////////////////
     // start of compression
     ////////////////////////////////////////////////////////////////////////////////
     double timing;
-    int vecsz = 256, blksz = B;
-#ifdef AVX512
-    vecsz = 512;
-#endif
-#ifdef AUTOTUNE
-   astart = hires::now(); // begin timing
-   vecsz = autotune_vector_len<T,Q,B>(num_iterations, sample_pct, &blksz, &timing, fine_massive, blocked, dataset, dims[CAP], data, outlier, code, dims, ebs_L4);
-   auto dims_L16 = InitializeDemoDims(dataset, dims[CAP], blksz);
-   aend = hires::now(); // begin timing
-   double autotune_t = static_cast<duration_t>(aend - astart).count();
-   cout << setprecision(6) << "Autotune Time: " << autotune_t << endl;
-#else
-    auto dims_L16 = dims;
-#endif
+    if (ap->szwf.autotune)
+    {
+        LogAll(log_info, "begin autotune");
+        auto astart = hires::now(); // begin timing
+        vecsz = autotune_vector_len<T,Q>(ap, &blksz, &timing, data, outlier, code, dims_L16, ebs_L4);
+        auto dims_L16 = InitializeDims(ap);
+        auto aend = hires::now(); // begin timing
+        LogAll(log_dbg, "autotune time:", static_cast<duration_t>(aend - astart).count(), "sec");
+    }
 
     int CN_OPS, LN_OPS;
     if (dims_L16[nDIM] == 3) {
@@ -84,7 +87,8 @@ void Compress(std::string&        finame,
         LN_OPS = 12;
     }
 
-    auto cstart = hires::now(); // begin timing
+    LogAll(log_info, "begin lossy-construction");
+    auto pqstart = hires::now(); // begin timing
     if (dims_L16[nDIM] == 1) 
     {
         #pragma omp parallel for
@@ -119,69 +123,54 @@ void Compress(std::string&        finame,
         }
     }
 
-    auto cend = hires::now(); //end timing
-    double tot_ctime = static_cast<duration_t>(cend - cstart).count();
+    auto pqend = hires::now(); //end timing
+    double pqtime = static_cast<duration_t>(pqend - pqstart).count();
     double n_iterations = dims_L16[DIM0] * dims_L16[DIM1] * dims_L16[DIM2]; //perform op for each element in data
-    double CGflops_s = ((n_iterations * CN_OPS)/ tot_ctime) / pow(2,30); //n_iterations * n_ops / time
-    double LGflops_s = ((n_iterations * LN_OPS)/ tot_ctime) / pow(2,30); //n_iterations * n_ops / time
-//    retval = PAPI_hl_region_end("computation");
-//    if ( retval != PAPI_OK ) {
-//	cerr << "PAPI Error in region begin\n" << endl;
-//	exit(1);
-//   }
-    cout << "Total PRED/QUANT time: " << tot_ctime << "s" << endl;
-    cout << setprecision(6) << "Conservative GFLOPS: " << CGflops_s << endl;
-    cout << setprecision(6) << "Leniant GFLOPS: " << LGflops_s << endl;
+    double CGflops_s = ((n_iterations * CN_OPS) / pqtime) / pow(2,30); //n_iterations * n_ops / time
+    double LGflops_s = ((n_iterations * LN_OPS) / pqtime) / pow(2,30); //n_iterations * n_ops / time
+    LogAll(log_dbg, "pred+quant time:", pqtime, "sec");
+   // if (ap->verbose)
+    if (true)
+    {
+        LogAll(log_dbg, "conservative gflops:", CGflops_s);
+        LogAll(log_dbg, "leniant gflops:", LGflops_s);
+    }
 
-    //    io::write_binary_file(code, len, new string("/Users/jtian/WorkSpace/cuSZ/src/CLDMED.bincode"));
+    // huffman encode
+    uint8_t* out = NULL;
+    size_t outSize = 0;
+    LogAll(log_info, "begin huffman tree generation");
 
-  // huffman encode
-  uint8_t* out = NULL;
-  size_t outSize = 0;
-  cout << "Encoding prediction data..." << endl;
+    auto hstart = hires::now(); // begin timing
+    DV::HuffmanTree* tree = DV::createDefaultHuffmanTree();
+    DV::encode_withTree(tree,code,len,&out,&outSize);
+    auto hend = hires::now();
+    double htime = static_cast<duration_t>(hend - hstart).count();
+    //if (ap->verbose) LogAll(log_dbg, "huffman time:", htime, "sec");
+    if (true) LogAll(log_dbg, "huffman time:", htime, "sec");
 
-  auto hstart = hires::now(); // begin timing
-  DV::HuffmanTree* tree = DV::createDefaultHuffmanTree();
-  DV::encode_withTree(tree,code,len,&out,&outSize);
-  auto hend = hires::now();
-  double tot_huffman_time = static_cast<duration_t>(hend - hstart).count(); //end timing
-  cout << "Total HUFFMAN time: " << tot_huffman_time << "s" << endl;
-
-  //int huff_depth;
-  //DV::hMD(tree,code,len,&huff_depth);
-
-   // if (show_histo) {
-   //     Analysis::histogram<int>(std::string("bincode/quant.code"), code, len, 8);
-  //  }
- //   Analysis::getEntropy(code, len, 1024);
-
-/*	FILE *fp2 = fopen("voutliers.csv","w");
-	fprintf(fp2,"voutliers\n");
-    for(size_t i = 0;i < len;i++) {
-		if (outlier[i]) num_outlier += 1;
-		fprintf(fp2, "%f\n",outlier[i]);
-	}
-	fclose(fp2);
-
-	float pct_outlier = ((float)num_outlier/len) * 100;
-	float compressionRatio = (len*sizeof(float))/(float)(outSize + num_outlier);
-*/
     auto tend = hires::now();
-    double tot_sim_time = static_cast<duration_t>(tend - tstart).count(); //end timing
-	cout << "Total Runtime: " << tot_sim_time << "s" << endl;
-//	cout << setprecision(5) << "Compression Ratio: " << compressionRatio << endl;
-//	cout << "Number Outliers: " << num_outlier << endl;
-//	cout << setprecision(10) << "Percentage Outliers: " << pct_outlier << endl;
-//	cout << "Huffman Tree Depth: " << huff_depth << endl;
+    LogAll(log_dbg, "compression time:", static_cast<duration_t>(tend - tstart).count(), "sec");
 
-   //write to file
-    //io::WriteBinaryFile(out, outSize, new string(finame + ".psz.tree.out"));
-    //io::WriteBinaryFile(outlier, num_outlier * sizeof(T), new string(finame + ".psz.outlier.out"));
+} // end Compression
 
-    ////////////////////////////////////////////////////////////////////////////////
-    // start of decompression
-    ////////////////////////////////////////////////////////////////////////////////
-/*
+template <typename T, typename Q>
+void Decompress(std::string&        finame,  
+                std::string const&  dataset,
+                size_t const* const dims_L16,
+                double const* const ebs_L4,
+                size_t&             num_outlier,
+                size_t              B,
+                Q                   code,
+                T                   xdata,
+                T                   outlier,
+                DV::HuffmanTree*    tree,
+                uint8_t*            out,
+	            int                 num_iterations,
+	            float               sample_pct,
+                bool                show_histo   = false) 
+{            
+    size_t len = dims_L16[LEN];
 	// huffman decode
 	DesignVerification::decode_withTree(tree,out,len,code);
 
@@ -220,20 +209,15 @@ void Compress(std::string&        finame,
     }
 
     if (show_histo) {
-        Analysis::histogram(std::string("original datum"), data_cmp, len, 16);
         Analysis::histogram(std::string("reconstructed datum"), xdata, len, 16);
     }
 
-    cout << "\e[46mnum.outlier:\t" << num_outlier << "\e[0m" << endl;
-    cout << setprecision(5) << "error bound: " << ebs_L4[EB] << endl;
-	cout << setprecision(5) << "Compression Ratio: " << compressionRatio << endl;
+    io::WriteArrayToBinary(new string(finame + ".vecsz"), xdata, len);
 
-    io::WriteBinaryFile(xdata, len, new string(finame + ".psz.cusz.out"));
-    Analysis::VerifyData(xdata, data_cmp, len, 1);
-*/
-}
+} // end Decompress
 
 }  // namespace interface
+
 }  // namespace vecsz
 
 #endif
