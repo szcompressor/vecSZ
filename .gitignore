@@ -1,5 +1,5 @@
 ./build/*
-./vecsz
+vecsz
 *.cpp
 *.txt
 *.csv
