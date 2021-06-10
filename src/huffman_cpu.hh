@@ -258,9 +258,6 @@ void initHuffman(HuffmanTree* huffmanTree, const int* s, size_t length) {
         LogAll(log_dbg, "maximal freq\t", maximal);
         LogAll(log_dbg, "maximal freq%\t", static_cast<double>(maximal) / length);
         LogAll(log_dbg, "maximal freq reciprocal\t", length / static_cast<double>(maximal));
-		FILE* fp = fopen("huffman_freq.csv","wb");
-		fwrite(freq,sizeof(size_t),huffmanTree->allNodes,fp);
-		fclose(fp);
 
     while (huffmanTree->qend > 2) qinsert(huffmanTree, new_node(huffmanTree, 0, 0, qremove(huffmanTree), qremove(huffmanTree)));
 
