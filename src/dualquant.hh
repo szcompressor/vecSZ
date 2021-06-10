@@ -10,11 +10,10 @@
 namespace vecsz {
 namespace predictor_quantizer {
 
-template <typename T, typename Q>
-void c_lorenzo_1d1l(T* data, T* outlier, Q* bcode, size_t const* const dims_L16, double const* const ebs_L4, size_t b0, size_t blksz, int vector_reg) {
-    auto   radius = static_cast<Q>(dims_L16[RADIUS]);
+template <typename Data, typename Quant>
+void c_lorenzo_1d1l(Data* data, Data* outlier, Quant* bcode, size_t const* const dims_L16, double const* const ebs_L4, size_t b0, size_t blksz, int vector_reg) {
+    auto   radius = static_cast<Quant>(dims_L16[RADIUS]);
     size_t _idx0  = b0 * blksz;
-
 
 	// prequantization with AVX
 #ifdef AVX512
@@ -138,10 +137,10 @@ if (vector_reg == 512) {
 	_mm256_maskstore_epi32(&bcode[id],mask,vbcode);
     	}
 	for (; id < blksz; id++) {
-		T    pred        = id < _idx0 + 1 ? 0 : data[id - 1];
-		T    posterr     = data[id] - pred;
+		Data    pred        = id < _idx0 + 1 ? 0 : data[id - 1];
+		Data    posterr     = data[id] - pred;
 		bool quantizable = fabs(posterr) < radius;
-		Q    _code       = static_cast<Q>(posterr + radius);
+		Quant    _code       = static_cast<Quant>(posterr + radius);
 		outlier[id]      = (1 - quantizable) * data[id]; //OLD CODE
 		//data[id]         = (1 - quantizable) * data[id];   //NEW CODE
 		bcode[id]        = quantizable * _code;
@@ -151,10 +150,10 @@ if (vector_reg == 512) {
 		for (size_t i0 = 0; i0 < blksz; i0++) {
 			size_t id = _idx0 + i0;
 			if (id >= dims_L16[DIM0]) continue;
-			T    pred        = id < _idx0 + 1 ? 0 : data[id - 1];
-			T    posterr     = data[id] - pred;
+			Data    pred        = id < _idx0 + 1 ? 0 : data[id - 1];
+			Data    posterr     = data[id] - pred;
 			bool quantizable = fabs(posterr) < radius;
-			Q    _code       = static_cast<Q>(posterr + radius);
+			Quant    _code       = static_cast<Quant>(posterr + radius);
 			outlier[id]      = (1 - quantizable) * data[id]; //OLD CODE
 			//data[id]         = (1 - quantizable) * data[id];   //NEW CODE
 			bcode[id]        = quantizable * _code;
@@ -162,20 +161,20 @@ if (vector_reg == 512) {
 	}
 }
 
-template <typename T, typename Q>
-void c_lorenzo_2d1l(T*                  data,
-                    T*                  outlier,
-                    Q*                  bcode,
+template <typename Data, typename Quant>
+void c_lorenzo_2d1l(Data*                  data,
+                    Data*                  outlier,
+                    Quant*                  bcode,
                     size_t const* const dims_L16,
                     double const* const ebs_L4,
                     size_t              b0,
                     size_t              b1,
                     int                 blksz,
                     int                 vector_reg) {
-    T _s[blksz + 1][blksz + 1]; // 2D interpretation of data
+    Data _s[blksz + 1][blksz + 1]; // 2D interpretation of data
 
-    memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(T));
-    auto radius = static_cast<Q>(dims_L16[RADIUS]);
+    memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(Data));
+    auto radius = static_cast<Quant>(dims_L16[RADIUS]);
 
     size_t _idx1 = b1 * blksz;
     size_t _idx0 = b0 * blksz;
@@ -223,17 +222,6 @@ if (vector_reg == 512) {
                 size_t id                  = gi0 + gi1 * dims_L16[DIM0];
                 _s[i1 + 1][i0 + 1] = round(data[id] * ebs_L4[EBx2_r]);
           }
-#ifdef PFETCH
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + blksz],0,0);
-#elif PF2
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 2* blksz],0,0);
-#elif PF4
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 4* blksz],0,0);
-#elif PF8
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 8* blksz],0,0);
-#elif PF16
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 16* blksz],0,0);
-#endif
         }
 
     // postquantization
@@ -293,10 +281,10 @@ if (vector_reg == 512) {
         size_t gi1 = _idx1 + i1;
         size_t gi0 = _idx0 + i0;
         size_t id          = gi0 + gi1 * dims_L16[DIM0];
-        T      pred        = _s[i1 + 1][i0] + _s[i1][i0 + 1] - _s[i1][i0];
-        T      posterr     = _s[i1 + 1][i0 + 1] - pred;
+        Data      pred        = _s[i1 + 1][i0] + _s[i1][i0 + 1] - _s[i1][i0];
+        Data      posterr     = _s[i1 + 1][i0 + 1] - pred;
         bool   quantizable = fabs(posterr) < radius;
-        Q      _code       = static_cast<Q>(posterr + radius);
+        Quant      _code       = static_cast<Quant>(posterr + radius);
         outlier[id]        = (1 - quantizable) * _s[i1 + 1][i0 + 1];
         bcode[id]          = quantizable * _code;
       }
@@ -346,17 +334,6 @@ if (vector_reg == 512) {
                 size_t id                  = gi0 + gi1 * dims_L16[DIM0];
                 _s[i1 + 1][i0 + 1] = round(data[id] * ebs_L4[EBx2_r]);
           }
-#ifdef PFETCH
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + blksz],0,0);
-#elif PF2
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 2* blksz],0,0);
-#elif PF4
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 4* blksz],0,0);
-#elif PF8
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 8* blksz],0,0);
-#elif PF16
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 16* blksz],0,0);
-#endif
         }
      //__m256 vend1    = _mm256_set_ps(_idx1+7,_idx1+6,_idx1+5,_idx1+4,_idx1+3,_idx1+2,_idx1+1,_idx1+0);
 
@@ -425,10 +402,10 @@ if (vector_reg == 512) {
         size_t gi0 = _idx0 + i0;
         if (gi1 >= dims_L16[DIM1] or gi0 >= dims_L16[DIM0]) continue;
         size_t id          = gi0 + gi1 * dims_L16[DIM0];
-        T      pred        = _s[i1 + 1][i0] + _s[i1][i0 + 1] - _s[i1][i0];
-        T      posterr     = _s[i1 + 1][i0 + 1] - pred;
+        Data      pred        = _s[i1 + 1][i0] + _s[i1][i0 + 1] - _s[i1][i0];
+        Data      posterr     = _s[i1 + 1][i0 + 1] - pred;
         bool   quantizable = fabs(posterr) < radius;
-        Q      _code       = static_cast<Q>(posterr + radius);
+        Quant      _code       = static_cast<Quant>(posterr + radius);
         outlier[id]        = (1 - quantizable) * _s[i1 + 1][i0 + 1];
         bcode[id]          = quantizable * _code;
       }
@@ -437,10 +414,10 @@ if (vector_reg == 512) {
   }
 }
 
-template <typename T, typename Q>
-void c_lorenzo_3d1l(T*                  data,
-                    T*                  outlier,
-                    Q*                  bcode,
+template <typename Data, typename Quant>
+void c_lorenzo_3d1l(Data*                  data,
+                    Data*                  outlier,
+                    Quant*                  bcode,
                     size_t const* const dims_L16,
                     double const* const ebs_L4,
                     size_t              b0,
@@ -448,9 +425,9 @@ void c_lorenzo_3d1l(T*                  data,
                     size_t              b2,
                     int                 blksz,
                     int                 vector_reg) {
-    T __attribute__((aligned(64))) _s[blksz + 1][blksz + 1][blksz + 1];
-    memset(_s, 0, (blksz + 1) * (blksz + 1) * (blksz + 1) * sizeof(T));
-    auto radius = static_cast<Q>(dims_L16[RADIUS]);
+    Data __attribute__((aligned(64))) _s[blksz + 1][blksz + 1][blksz + 1];
+    memset(_s, 0, (blksz + 1) * (blksz + 1) * (blksz + 1) * sizeof(Data));
+    auto radius = static_cast<Quant>(dims_L16[RADIUS]);
 
     size_t _idx2 = b2 * blksz;
     size_t _idx1 = b1 * blksz;
@@ -504,17 +481,6 @@ if (vector_reg == 512) {
                 size_t id                  = gi0 + gi1 * dims_L16[DIM0] + gi2 * dims_L16[DIM1] * dims_L16[DIM0];
                 _s[i2 + 1][i1 + 1][i0 + 1] = round(data[id] * ebs_L4[EBx2_r]);
           }
-#ifdef PFETCH
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + blksz],0,0);
-#elif PF2
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 2* blksz],0,0);
-#elif PF4
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 4* blksz],0,0);
-#elif PF8
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 8* blksz],0,0);
-#elif PF16
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 16* blksz],0,0);
-#endif
         }
     }
 
@@ -588,12 +554,12 @@ if (vector_reg == 512) {
           size_t gi1 = _idx1 + i1;
           size_t gi0 = _idx0 + i0;
           size_t id   = gi0 + gi1 * dims_L16[DIM0] + gi2 * dims_L16[DIM1] * dims_L16[DIM0];
-          T      pred = _s[i2][i1][i0]                                                          // +, dist=3
+          Data      pred = _s[i2][i1][i0]                                                          // +, dist=3
                    - _s[i2 + 1][i1][i0] - _s[i2][i1 + 1][i0] - _s[i2][i1][i0 + 1]               // -, dist=2
                    + _s[i2 + 1][i1 + 1][i0] + _s[i2 + 1][i1][i0 + 1] + _s[i2][i1 + 1][i0 + 1];  // +, dist=1
-          T    posterr     = _s[i2 + 1][i1 + 1][i0 + 1] - pred;
+          Data    posterr     = _s[i2 + 1][i1 + 1][i0 + 1] - pred;
           bool quantizable = fabs(posterr) < radius;
-          Q    _code       = static_cast<Q>(posterr + radius);
+          Quant    _code       = static_cast<Quant>(posterr + radius);
           outlier[id]      = (1 - quantizable) * _s[i2 + 1][i1 + 1][i0 + 1];
           bcode[id]        = quantizable * _code;
 
@@ -650,7 +616,8 @@ if (vector_reg == 512) {
 
 		_mm256_storeu_ps(&_s[i2+1][i1+1][i0+1],s);
 	  }
-          for (; i0 < blksz; i0++) { //Sequential Case
+          for (; i0 < blksz; i0++) //Sequential Case
+          {
                 size_t gi2 = _idx2 + i2;
                 size_t gi1 = _idx1 + i1;
                 size_t gi0 = _idx0 + i0;
@@ -658,17 +625,6 @@ if (vector_reg == 512) {
           	if (gi2 >= dims_L16[DIM2] or gi1 >= dims_L16[DIM1] or gi0 >= dims_L16[DIM0]) continue;
                 _s[i2 + 1][i1 + 1][i0 + 1] = round(data[id] * ebs_L4[EBx2_r]);
           }
-#ifdef PFETCH
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + blksz],0,0);
-#elif PF2
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 2* blksz],0,0);
-#elif PF4
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 4* blksz],0,0);
-#elif PF8
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 8* blksz],0,0);
-#elif PF16
-      __builtin_prefetch(&data[(_idx1+i1)*dims_L16[DIM0] + _idx0 + 16* blksz],0,0);
-#endif
         }
     }
 
@@ -753,12 +709,12 @@ if (vector_reg == 512) {
           size_t gi0 = _idx0 + i0;
           size_t id   = gi0 + gi1 * dims_L16[DIM0] + gi2 * dims_L16[DIM1] * dims_L16[DIM0];
           if (gi2 >= dims_L16[DIM2] or gi1 >= dims_L16[DIM1] or gi0 >= dims_L16[DIM0]) continue;
-          T      pred = _s[i2][i1][i0]                                                          // +, dist=3
+          Data      pred = _s[i2][i1][i0]                                                          // +, dist=3
                    - _s[i2 + 1][i1][i0] - _s[i2][i1 + 1][i0] - _s[i2][i1][i0 + 1]               // -, dist=2
                    + _s[i2 + 1][i1 + 1][i0] + _s[i2 + 1][i1][i0 + 1] + _s[i2][i1 + 1][i0 + 1];  // +, dist=1
-          T    posterr     = _s[i2 + 1][i1 + 1][i0 + 1] - pred;
+          Data    posterr     = _s[i2 + 1][i1 + 1][i0 + 1] - pred;
           bool quantizable = fabs(posterr) < radius;
-          Q    _code       = static_cast<Q>(posterr + radius);
+          Quant    _code       = static_cast<Quant>(posterr + radius);
           outlier[id]      = (1 - quantizable) * _s[i2 + 1][i1 + 1][i0 + 1];
           bcode[id]        = quantizable * _code;
 
@@ -768,15 +724,15 @@ if (vector_reg == 512) {
   }
 }
 
-template <typename T, typename Q>
-void x_lorenzo_1d1l(T* xdata, T* outlier, Q* bcode, size_t const* const dims_L16, double _2EB, size_t b0, size_t blksz) {
-    auto   radius = static_cast<Q>(dims_L16[RADIUS]);
+template <typename Data, typename Quant>
+void x_lorenzo_1d1l(Data* xdata, Data* outlier, Quant* bcode, size_t const* const dims_L16, double _2EB, size_t b0, size_t blksz) {
+    auto   radius = static_cast<Quant>(dims_L16[RADIUS]);
     size_t _idx0  = b0 * blksz;
     for (size_t i0 = 0; i0 < blksz; i0++) {
         size_t id = _idx0 + i0;
         if (id >= dims_L16[DIM0]) continue;
-        T pred    = id < _idx0 + 1 ? 0 : xdata[id - 1];
-        xdata[id] = bcode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bcode[id] - radius));
+        Data pred    = id < _idx0 + 1 ? 0 : xdata[id - 1];
+        xdata[id] = bcode[id] == 0 ? outlier[id] : static_cast<Data>(pred + (bcode[id] - radius));
     }
     for (size_t i0 = 0; i0 < blksz; i0++) {
         size_t id = _idx0 + i0;
@@ -785,11 +741,11 @@ void x_lorenzo_1d1l(T* xdata, T* outlier, Q* bcode, size_t const* const dims_L16
     }
 }
 
-template <typename T, typename Q>
-void x_lorenzo_2d1l(T* xdata, T* outlier, Q* bcode, size_t const* const dims_L16, double _2EB, size_t b0, size_t b1, size_t blksz) {
-    T _s[blksz + 1][blksz + 1];
-    memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(T));
-    auto radius = static_cast<Q>(dims_L16[RADIUS]);
+template <typename Data, typename Quant>
+void x_lorenzo_2d1l(Data* xdata, Data* outlier, Quant* bcode, size_t const* const dims_L16, double _2EB, size_t b0, size_t b1, size_t blksz) {
+    Data _s[blksz + 1][blksz + 1];
+    memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(Data));
+    auto radius = static_cast<Quant>(dims_L16[RADIUS]);
 
     size_t _idx1 = b1 * blksz;
     size_t _idx0 = b0 * blksz;
@@ -800,26 +756,26 @@ void x_lorenzo_2d1l(T* xdata, T* outlier, Q* bcode, size_t const* const dims_L16
             size_t gi0 = _idx0 + i0;
             if (gi1 >= dims_L16[DIM1] or gi0 >= dims_L16[DIM0]) continue;
             const size_t id    = gi0 + gi1 * dims_L16[DIM0];
-            T            pred  = _s[i1][i0 + 1] + _s[i1 + 1][i0] - _s[i1][i0];
-            _s[i1 + 1][i0 + 1] = bcode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bcode[id] - radius));
+            Data            pred  = _s[i1][i0 + 1] + _s[i1 + 1][i0] - _s[i1][i0];
+            _s[i1 + 1][i0 + 1] = bcode[id] == 0 ? outlier[id] : static_cast<Data>(pred + (bcode[id] - radius));
             xdata[id]          = _s[i1 + 1][i0 + 1] * _2EB;
         }
     }
 }
 
-template <typename T, typename Q>
-void x_lorenzo_3d1l(T*                  xdata,
-                    T*                  outlier,
-                    Q*                  bcode,
+template <typename Data, typename Quant>
+void x_lorenzo_3d1l(Data*                  xdata,
+                    Data*                  outlier,
+                    Quant*                  bcode,
                     size_t const* const dims_L16,  //
                     double              _2EB,
                     size_t              b0,
                     size_t              b1,
                     size_t              b2,
                     size_t              blksz) {
-    T _s[blksz + 1][blksz + 1][blksz + 1];
-    memset(_s, 0, (blksz + 1) * (blksz + 1) * (blksz + 1) * sizeof(T));
-    auto radius = static_cast<Q>(dims_L16[RADIUS]);
+    Data _s[blksz + 1][blksz + 1][blksz + 1];
+    memset(_s, 0, (blksz + 1) * (blksz + 1) * (blksz + 1) * sizeof(Data));
+    auto radius = static_cast<Quant>(dims_L16[RADIUS]);
 
     size_t _idx2 = b2 * blksz;
     size_t _idx1 = b1 * blksz;
@@ -833,10 +789,10 @@ void x_lorenzo_3d1l(T*                  xdata,
                 size_t gi0 = _idx0 + i0;
                 if (gi2 >= dims_L16[DIM2] or gi1 >= dims_L16[DIM1] or gi0 >= dims_L16[DIM0]) continue;
                 size_t id   = gi0 + gi1 * dims_L16[DIM0] + gi2 * dims_L16[DIM1] * dims_L16[DIM0];
-                T      pred = _s[i2][i1][i0]                                                          // +, dist=3
+                Data      pred = _s[i2][i1][i0]                                                          // +, dist=3
                          - _s[i2 + 1][i1][i0] - _s[i2][i1 + 1][i0] - _s[i2][i1][i0 + 1]               // -, dist=2
                          + _s[i2 + 1][i1 + 1][i0] + _s[i2 + 1][i1][i0 + 1] + _s[i2][i1 + 1][i0 + 1];  // +, dist=1
-                _s[i2 + 1][i1 + 1][i0 + 1] = bcode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bcode[id] - radius));
+                _s[i2 + 1][i1 + 1][i0 + 1] = bcode[id] == 0 ? outlier[id] : static_cast<Data>(pred + (bcode[id] - radius));
                 xdata[id]                  = _s[i2 + 1][i1 + 1][i0 + 1] * _2EB;
             }
         }

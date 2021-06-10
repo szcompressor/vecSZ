@@ -129,8 +129,7 @@ void Compress(argparse* ap,
     double CGflops_s = ((n_iterations * CN_OPS) / pqtime) / pow(2,30); //n_iterations * n_ops / time
     double LGflops_s = ((n_iterations * LN_OPS) / pqtime) / pow(2,30); //n_iterations * n_ops / time
     LogAll(log_dbg, "pred+quant time:", pqtime, "sec");
-   // if (ap->verbose)
-    if (true)
+    if (ap->verbose)
     {
         LogAll(log_dbg, "conservative gflops:", CGflops_s);
         LogAll(log_dbg, "leniant gflops:", LGflops_s);
@@ -146,8 +145,7 @@ void Compress(argparse* ap,
     DV::encode_withTree(tree,code,len,&out,&outSize);
     auto hend = hires::now();
     double htime = static_cast<duration_t>(hend - hstart).count();
-    //if (ap->verbose) LogAll(log_dbg, "huffman time:", htime, "sec");
-    if (true) LogAll(log_dbg, "huffman time:", htime, "sec");
+    if (ap->verbose) LogAll(log_dbg, "huffman time:", htime, "sec");
 
     auto tend = hires::now();
     LogAll(log_dbg, "compression time:", static_cast<duration_t>(tend - tstart).count(), "sec");
