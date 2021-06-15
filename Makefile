@@ -14,6 +14,7 @@ endif
 
 BUILD_DIR := ./build
 SRC_DIR := ./src
+EXEC_DIR := ./bin
 
 SRCS := $(shell find $(SRC_DIR) -name *.cc)
 
@@ -49,12 +50,13 @@ ifneq ($(omp), False)
 endif
 
 
-$(TARGET_EXEC): $(OBJS)
+$(EXEC_DIR)/$(TARGET_EXEC): $(OBJS)
 	@echo "------------COMPILED WITH------------"
 	@echo "VECTOR SUPPORT: $(vector_support)"
 	@echo "DEBUG:          $(debug)"
 	@echo "OPENMP:         $(omp)"
 	@echo "FLAGS:          $(CPPFLAGS)"
+	@mkdir -p $(dir $@)
 	@$(CC) $(OBJS) -o $@ $(LDFLAGS)
 
 $(BUILD_DIR)/%.cc.o: %.cc
@@ -64,6 +66,7 @@ $(BUILD_DIR)/%.cc.o: %.cc
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR)
-	rm -rf vecsz
+	rm -rf $(EXEC_DIR)/$(TARGET_EXEC)
+
 
 -include $(DEPS)
