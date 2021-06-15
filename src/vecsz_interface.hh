@@ -5,13 +5,12 @@
 
 
 #include "argument_parser/argparse.hh"
-#include "utils/io.hh"
 #include "analysis.hh"
+#include "autotune.hh"
 #include "dualquant.hh"
 #include "huffman_cpu.hh"
-#include "verify.hh"
-
-#include "autotune.hh"
+#include "utils/verify.hh"
+#include "utils/io.hh"
 
 
 
@@ -155,30 +154,42 @@ void Compress(argparse* ap,
     double htime = static_cast<duration_t>(hend - hstart).count();
     if (ap->verbose) LogAll(log_dbg, "huffman time:", htime, "sec");
 
+    for_each(outlier, outlier + len, [&](T& n) {num_outlier += n == 0? 0 : 1;});
+    if (ap->verbose) LogAll(log_dbg, "number of outliers:", num_outlier);
+
     auto tend = hires::now();
     LogAll(log_dbg, "compression time:", static_cast<duration_t>(tend - tstart).count(), "sec");
 
 } // end Compression
 
 template <typename T, typename Q>
-void Decompress(std::string&        finame,  
-                std::string const&  dataset,
-                size_t const* const dims_L16,
-                double const* const ebs_L4,
-                size_t&             num_outlier,
-                size_t              B,
-                Q                   code,
-                T                   xdata,
-                T                   outlier,
-                DV::HuffmanTree*    tree,
-                uint8_t*            out,
-	            int                 num_iterations,
-	            float               sample_pct,
-                bool                show_histo   = false) 
+void Decompress(argparse*        ap,
+                size_t&          num_outlier,
+                bool             show_histo = false)
 {            
-    size_t len = dims_L16[LEN];
+    std::string&        finame         = ap->files.input_file;  
+    std::string const&  dataset        = ap->demo_dataset;
+    size_t const* const dims_L16       = InitializeDims(ap);
+    auto                eb_config      = new config_t(ap->dict_size, ap->eb);
+    size_t              B              = ap->block_size;
+    size_t              len            = dims_L16[LEN];
+    int                 num_iterations = ap->num_iterations;
+    float               sample_pct     = ap->sample_percentage;
+    Q*                  code;
+    T*                  xdata;
+    T*                  outlier;
+    DV::HuffmanTree*    tree;
+    uint8_t*            out;
+
+    if (ap->mode == "r2r") 
+    {
+        double value_range = GetDatumValueRange<float>(finame, dims_L16[LEN]);
+        eb_config->ChangeToRelativeMode(value_range);
+    }
+    double const* const ebs_L4 = InitializeErrorBoundFamily(eb_config);
+
 	// huffman decode
-	DesignVerification::decode_withTree(tree,out,len,code);
+	DV::decode_withTree(tree,out,len,code);
 
     if (dims_L16[nDIM] == 1) 
     {
@@ -214,13 +225,17 @@ void Decompress(std::string&        finame,
         }
     }
 
-    if (show_histo) {
-        Analysis::histogram(std::string("reconstructed datum"), xdata, len, 16);
-    }
-
-    io::WriteArrayToBinary(new string(finame + ".vecsz"), xdata, len);
+    io::WriteArrayToBinary(new string(finame + ".out"), xdata, len);
 
 } // end Decompress
+
+template <typename T, typename Q>
+void Dryrun(argparse* ap,
+            size_t&   num_outlier,
+            bool      show_histo   = false) 
+{
+    Compress(ap, num_outlier);
+}
 
 }  // namespace interface
 
