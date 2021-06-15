@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "argument_parser/argparse.hh"
-#include "workflow.hh"
+#include "vecsz_interface.hh"
 #include "types.hh"
 #include "verify.hh"
 #include "query.hh"
@@ -21,7 +21,6 @@ int main(int argc, char** argv) {
 
     // parse command line arguments
     auto ap = new ArgParse();
-    LogAll(log_info,"parsing command-line args");
     ap->ParseVecszArgs(argc, argv);
 
     vecsz::interface::Compress<float, int>(ap, nnz_outlier, true);

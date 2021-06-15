@@ -456,4 +456,6 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
 
     // phase 2: check if meaningful
     CheckArgs();
+
+    LogAll(log_info,"parsing command-line args");
 }

@@ -51,7 +51,15 @@ void Compress(argparse* ap,
         eb_config->ChangeToRelativeMode(value_range);
     }
     double const* const ebs_L4 = InitializeErrorBoundFamily(eb_config);
-    auto tstart = hires::now(); // begin timing
+
+    if (ap->verbose)
+    {
+        ap->PrintArgs();
+    }
+    
+    auto tstart  = hires::now(); // begin timing
+
+    // load data
     LogAll(log_info, "load", finame, len * (ap->dtype == "f32" ? sizeof(float) : sizeof(double)), "bytes,", ap->dtype);
     auto ldstart = hires::now(); 
     alignas(32) auto data     = io::ReadBinaryToNewArray<T>(finame, len);
