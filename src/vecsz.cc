@@ -7,11 +7,13 @@
 #include "argument_parser/argparse.hh"
 #include "vecsz_interface.hh"
 #include "types.hh"
-#include "verify.hh"
-#include "query.hh"
 #include "dimensions.hh"
 
-int main(int argc, char** argv) {
+#include "utils/query.hh"
+#include "utils/verify.hh"
+
+int main(int argc, char** argv) 
+{
     std::string eb_mode, dataset, datum_path;
     double      eb;
     size_t      n_dim, d0, d1, d2, d3 = 1;

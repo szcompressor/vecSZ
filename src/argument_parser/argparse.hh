@@ -11,11 +11,12 @@
 #include <string>
 
 #include "../types.hh"
-#include "utils/format.hh"
+#include "../utils/format.hh"
 
 using std::string;
 
-struct SZWorkflow {
+struct SZWorkflow 
+{
 	bool use_demo{false};
 	bool lossy_compress{false};
 	bool lossy_decompress{false};
@@ -23,12 +24,14 @@ struct SZWorkflow {
 	bool autotune{false};
 };
 
-struct fileNames {
+struct fileNames 
+{
 	string input_file;
 	string output_file;
 };
 
-class ArgParse {
+class ArgParse 
+{
 	public:
 
 		struct fileNames files;
@@ -69,7 +72,7 @@ class ArgParse {
 
 		ArgParse() = default;
 
-    		static int SelfMultiple4(Integer4 i) { return i._0 * i._1 * i._2 * i._3; }
+    	static int SelfMultiple4(Integer4 i) { return i._0 * i._1 * i._2 * i._3; }
 
 		void ParseVecszArgs(int argc, char** argv);
 
