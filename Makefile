@@ -66,7 +66,7 @@ $(BUILD_DIR)/%.cc.o: %.cc
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR)
-	rm -rf $(EXEC_DIR)/$(TARGET_EXEC)
+	rm -rf $(EXEC_DIR)
 
 
 -include $(DEPS)
