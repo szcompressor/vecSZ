@@ -35,6 +35,22 @@ T* ReadBinaryToNewArray(const std::string& name_on_fs, size_t dtype_len)
 }
 
 template <typename T>
+T* ReadBinaryToNewArrayPos(const std::string& name_on_fs, size_t dtype_len, int start_location)
+{
+    std::ifstream ifs(name_on_fs.c_str(), std::ios::binary | std::ios::in);
+    if (not ifs.is_open()) {
+        std::cerr << "fail to open " << name_on_fs << std::endl;
+        exit(1);
+        // return;
+    }
+    auto _a = new T[dtype_len]();
+    ifs.seekg(start_location);
+    ifs.read(reinterpret_cast<char*>(_a), std::streamsize(dtype_len * sizeof(T)));
+    ifs.close();
+    return _a;
+}
+
+template <typename T>
 void ReadBinaryToArray(const std::string& name_on_fs, T* _a, size_t dtype_len)
 {
     std::ifstream ifs(name_on_fs.c_str(), std::ios::binary | std::ios::in);
@@ -52,6 +68,15 @@ template <typename T>
 void WriteArrayToBinary(const std::string& name_on_fs, T* const _a, size_t const dtype_len)
 {
     std::ofstream ofs(name_on_fs.c_str(), std::ios::binary | std::ios::out);
+    if (not ofs.is_open()) return;
+    ofs.write(reinterpret_cast<const char*>(_a), std::streamsize(dtype_len * sizeof(T)));
+    ofs.close();
+}
+
+template <typename T>
+void AppendArrayToBinary(const std::string& name_on_fs, T* const _a, size_t const dtype_len)
+{
+    std::ofstream ofs(name_on_fs.c_str(), std::ios::binary | std::ios::out | std::ios::app);
     if (not ofs.is_open()) return;
     ofs.write(reinterpret_cast<const char*>(_a), std::streamsize(dtype_len * sizeof(T)));
     ofs.close();
