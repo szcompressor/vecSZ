@@ -675,7 +675,7 @@ void hMD(HuffmanTree* huffmanTree, const int *s, size_t length,int *depth) {
 /**
  * @par *out rememmber to allocate targetLength short_type data for it beforehand.
  *
- * */
+ **/
 void decode_withTree(HuffmanTree* huffmanTree, const uint8_t* s, size_t targetLength, int* out) {
     size_t encodeStartIndex;
     size_t nodeCount = bytesToInt_bigEndian(s);
