@@ -6,3 +6,4 @@ vecsz
 *.csv
 *.d
 *.o
+.vscode/*
