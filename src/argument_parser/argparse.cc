@@ -1,7 +1,7 @@
 /*
  * @file argparse.cc
  * @author Griffin Dube
- * @brief Command Line argument parser
+ * @brief Command Line argument parser (adapted from cuSZ)
  * @version 1.0
  * @date 2021-06-01
  * Created on: 21-06-01
