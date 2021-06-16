@@ -335,10 +335,22 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
                                 case 'i':
                                 tag_input:
                                     if (i + 1 <= argc)
-				    {
-					    files.input_file = string(argv[++i]);
-					    if (files.output_file == "") files.output_file = files.input_file + ".sz";
-				    }
+                                    {
+                                        files.input_file = string(argv[++i]);
+                                        if (files.output_file == "") 
+                                        {
+                                            // add appropriate file endings
+                                            if (files.input_file.size() >= string(".sz").size() && 
+                                                files.input_file.compare(files.input_file.size() - string(".sz").size(), string(".sz").size(), string(".sz")) == 0) 
+                                            {
+                                                files.output_file = files.input_file + ".out";
+                                            }
+                                            else
+                                            {
+                                                files.output_file = files.input_file + ".sz";
+                                            }
+                                        }
+                                    }
                                     break;
                                     // alternative output
                                 case 'o':
