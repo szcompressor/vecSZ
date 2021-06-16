@@ -2,8 +2,28 @@
 
 vecSZ is an implementation of the popular [SZ lossy compressor](https://github.com/szcompressor/SZ) optimized for efficient CPU performance using vectorization.
 
+## Compilation
+
+To compile vecSZ with default optimizations (shown below), just type `make`.
+
+### Default Optimizations 
+All options are shown with their default value
+```
+Enable vector support   -  vector_support=AVX2
+Enable -O3 Optimization -  optimize=True
+Enable OpenMP           -  omp=False
+Use -g for debugging    -  debug=False
+```
+
+To enable an alternate level of vector support, use: `vector_support=<None|AVX|AVX2|AVX512>`
+
+For example, enable AVX-512 and OpenMP by typing:
+```bash
+make vector_support=AVX512 omp=True
+```
+
 # Use
-## basic use
+## Basic Use
 
 Type `vecsz` or `vecsz -h` for instant instructions. Also, a basic use vecSZ is given below.
 
@@ -29,7 +49,7 @@ The following **essential** arguments are required,
 - INPUT: `-i` to specify input file
 - INPUT: `-D` to specify demo dataset name or `-l` to dimensions
 - OUTPUT: `-o` or `--output` to specify output path for both compression and decompression
-- LOG: `-V` or `--verbose` to print host and device information
+- LOG: `-V` or `--verbose` to print CPU information
 
 # Limitations
 - Current support for only x86 architectures (AVX/SSE support)

@@ -1,6 +1,6 @@
 TARGET_EXEC := vecsz
 
-vector_support ?= None
+vector_support ?= AVX2
 debug ?= False
 omp ?= False
 optimize ?= True
@@ -49,6 +49,19 @@ ifneq ($(omp), False)
 	LDFLAGS += -fopenmp
 endif
 
+help:
+	@echo "--------------COMPILATION INSTRUCTIONS--------------"
+	@echo ""
+	@echo "To compile with vectorization support, use:"
+	@echo -e "    \033[1mmake vector_support=<None|AVX|AVX2|AVX512>\033[0m"
+	@echo ""
+	@echo "All options with their default values are listed below."
+	@echo -e "Enable vector support   -  \033[1mvector_support=$(vector_support)\033[0m"
+	@echo -e "Use -g for debugging    -  \033[1mdebug=$(debug)\033[0m"
+	@echo -e "Enable OpenMP           -  \033[1momp=$(omp)\033[0m"
+	@echo -e "Enable -O3 Optimization -  \033[1moptimize=True\033[0m"
+	@echo ""
+	@echo "----------------------------------------------------"
 
 $(EXEC_DIR)/$(TARGET_EXEC): $(OBJS)
 	@echo "------------COMPILED WITH------------"
