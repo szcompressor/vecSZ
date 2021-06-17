@@ -49,6 +49,19 @@ ifneq ($(omp), False)
 	LDFLAGS += -fopenmp
 endif
 
+$(EXEC_DIR)/$(TARGET_EXEC): $(OBJS)
+	@echo "------------COMPILED WITH------------"
+	@echo "VECTOR SUPPORT: $(vector_support)"
+	@echo "DEBUG:          $(debug)"
+	@echo "OPENMP:         $(omp)"
+	@echo "FLAGS:          $(CPPFLAGS)"
+	@mkdir -p $(dir $@)
+	@$(CC) $(OBJS) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/%.cc.o: %.cc
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) -c $< -o $@
+
 help:
 	@echo "--------------COMPILATION INSTRUCTIONS--------------"
 	@echo ""
@@ -62,19 +75,6 @@ help:
 	@echo -e "Enable -O3 Optimization -  \033[1moptimize=True\033[0m"
 	@echo ""
 	@echo "----------------------------------------------------"
-
-$(EXEC_DIR)/$(TARGET_EXEC): $(OBJS)
-	@echo "------------COMPILED WITH------------"
-	@echo "VECTOR SUPPORT: $(vector_support)"
-	@echo "DEBUG:          $(debug)"
-	@echo "OPENMP:         $(omp)"
-	@echo "FLAGS:          $(CPPFLAGS)"
-	@mkdir -p $(dir $@)
-	@$(CC) $(OBJS) -o $@ $(LDFLAGS)
-
-$(BUILD_DIR)/%.cc.o: %.cc
-	@mkdir -p $(dir $@)
-	$(CC) $(CPPFLAGS) -c $< -o $@
 
 .PHONY: clean
 clean:
