@@ -33,7 +33,7 @@ void c_lorenzo_1d1l(Data* data, Data* outlier, Quant* bcode, size_t const* const
 	size_t blk_end8  = (blk_end & ~0x7);
 	size_t blk_end4  = (blk_end & ~0x3);
 
-	if (id < dims_L16[LEN] + blksz)
+	if (id < dims_L16[LEN])
   {
 #ifdef AVX512
     if (vector_reg == 512) 
@@ -171,7 +171,7 @@ void c_lorenzo_2d1l(Data*                  data,
   size_t _idx1 = b1 * blksz;
   size_t _idx0 = b0 * blksz;
 
-  if (_idx1 + blksz < dims_L16[DIM1] and _idx0 + blksz < dims_L16[DIM0]) // vectorizable cases
+  if (_idx1 < dims_L16[DIM1] and _idx0 < dims_L16[DIM0]) // vectorizable cases
   {
 #ifdef AVX512
     __m512 vradius, vebx2, vzero;
@@ -443,7 +443,7 @@ void c_lorenzo_3d1l(Data*                  data,
   size_t _idx1 = b1 * blksz;
   size_t _idx0 = b0 * blksz;
 
-  if (_idx2 + blksz < dims_L16[DIM2] and _idx1 + blksz < dims_L16[DIM1] and _idx0 + blksz < dims_L16[DIM0]) // vectorizable cases
+  if (_idx2 < dims_L16[DIM2] and _idx1 < dims_L16[DIM1] and _idx0 < dims_L16[DIM0]) // vectorizable cases
   { 
 #ifdef AVX512
   __m512 vradius, vebx2, vzero;
@@ -758,17 +758,13 @@ void x_lorenzo_1d1l(Data* xdata, Data* outlier, Quant* bcode, size_t const* cons
 {
   auto   radius = static_cast<Quant>(dims_L16[RADIUS]);
   size_t _idx0  = b0 * blksz;
+  
   for (size_t i0 = 0; i0 < blksz; i0++) 
   {
     size_t id = _idx0 + i0;
     if (id >= dims_L16[DIM0]) continue;
     Data pred    = id < _idx0 + 1 ? 0 : xdata[id - 1];
     xdata[id] = bcode[id] == 0 ? outlier[id] : static_cast<Data>(pred + (bcode[id] - radius));
-  }
-  for (size_t i0 = 0; i0 < blksz; i0++) 
-  {
-    size_t id = _idx0 + i0;
-    if (id >= dims_L16[DIM0]) continue;
     xdata[id] = xdata[id] * _2EB;
   }
 }
@@ -799,15 +795,15 @@ void x_lorenzo_2d1l(Data* xdata, Data* outlier, Quant* bcode, size_t const* cons
 }
 
 template <typename Data, typename Quant>
-void x_lorenzo_3d1l(Data*                  xdata,
-                    Data*                  outlier,
-                    Quant*                  bcode,
+void x_lorenzo_3d1l(Data*               xdata,
+                    Data*               outlier,
+                    Quant*              bcode,
                     size_t const* const dims_L16,  //
                     double              _2EB,
                     size_t              b0,
                     size_t              b1,
                     size_t              b2,
-                    size_t              blksz) 
+                    size_t              blksz)
 {
   Data _s[blksz + 1][blksz + 1][blksz + 1];
   memset(_s, 0, (blksz + 1) * (blksz + 1) * (blksz + 1) * sizeof(Data));
