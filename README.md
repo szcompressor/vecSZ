@@ -43,6 +43,7 @@ The following **essential** arguments are required,
 - WORKFLOW: `-z` to compress; `-x` to decompress.
 - CONFIG: `-m` to specify error control mode from `abs` (absolute) and `r2r` (relative to value range)
 - CONFIG: `-e` to specify error bound
+- CONFIG: `-t` to specify datatype from `f32` (single-precision float) and `f64` (double-precision float)
 - INPUT: `-i` to specify input file
 - INPUT: `-D` to specify demo dataset name or `-l` to dimensions
 - OUTPUT: `-o` or `--output` to specify output path for both compression and decompression
