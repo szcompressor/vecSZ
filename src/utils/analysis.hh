@@ -17,7 +17,7 @@ using std::cout;
 using std::endl;
 using std::tuple;
 
-namespace Analysis {
+namespace analysis {
 template <typename T>
 tuple<double, double, double> getStat(T* __d, size_t l, bool print = false)
 {
@@ -157,6 +157,6 @@ void histogram(
     //    delete[] arr;
 }
 
-}  // namespace Analysis
+}  // namespace analysis
 
 #endif
