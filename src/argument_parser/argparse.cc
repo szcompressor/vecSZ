@@ -54,6 +54,10 @@ void ArgParse::PrintArgs()
 	cout << log_cfg << "Compress?            " << string((szwf.lossy_compress) ? "Yes" : "No")                 << endl;
 	cout << log_cfg << "Decompress?          " << string((szwf.lossy_decompress) ? "Yes" : "No")               << endl;
 	cout << log_cfg << "Dry-Run?             " << string((szwf.lossy_dryrun) ? "Yes" : "No")                   << endl;
+    cout << log_cfg << "Skip:                " << ""                                                           << endl;
+    cout << log_cfg << "  Huffman Encoding?  " << string((szwf.skip_huffman_enc) ? "Yes" : "No")               << endl;
+    cout << log_cfg << "  Write to file?     " << string((szwf.skip_write_output) ? "Yes" : "No")              << endl;
+    cout << log_cfg << "  Verification?      " << string((szwf.skip_verify) ? "Yes" : "No")                    << endl;
 	cout << log_cfg << "Demo Dataset?        " << string((demo_dataset.empty()) ? "No" : demo_dataset)         << endl;
 	cout << log_cfg << "Error Mode:          " << mode                                                         << endl;
 	cout << log_cfg << "Data Type:           " << dtype                                                        << endl;
@@ -252,24 +256,25 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
 			switch (argv[i][1])
 			{
 		                // ----------------------------------------------------------------
-                                case '-':
-                                    if (long_opt == "--help") goto tag_help;              // DOCUMENT
-                                    if (long_opt == "--version") goto tag_version;        //
-                                    if (long_opt == "--verbose") goto tag_verbose;        //
-                                    if (long_opt == "--mode") goto tag_mode;              // COMPRESSION CONFIG
-                                    if (long_opt == "--eb") goto tag_error_bound;         //
-                                    if (long_opt == "--dict-size") goto tag_dict;         //
-                                    if (long_opt == "--block-size") goto tag_block;       //
-                                    if (long_opt == "--dtype") goto tag_type;             //
-                                    if (long_opt == "--input") goto tag_input;            // INPUT
-                                    if (long_opt == "--demo") goto tag_demo;              //
-                                    if (long_opt == "--len") goto tag_len;                //
-                                    if (long_opt == "--compress") goto tag_compress;      // WORKFLOW
-                                    if (long_opt == "--zip") goto tag_compress;           //
-                                    if (long_opt == "--decompress") goto tag_decompress;  //
-                                    if (long_opt == "--unzip") goto tag_decompress;       //
-                                    if (long_opt == "--dry-run") goto tag_dryrun;         //
-                                    if (long_opt == "--output") goto tag_x_out;           //
+                case '-':
+                    if (long_opt == "--help") goto tag_help;              // DOCUMENT
+                    if (long_opt == "--version") goto tag_version;        //
+                    if (long_opt == "--verbose") goto tag_verbose;        //
+                    if (long_opt == "--mode") goto tag_mode;              // COMPRESSION CONFIG
+                    if (long_opt == "--eb") goto tag_error_bound;         //
+                    if (long_opt == "--dict-size") goto tag_dict;         //
+                    if (long_opt == "--block-size") goto tag_block;       //
+                    if (long_opt == "--dtype") goto tag_type;             //
+                    if (long_opt == "--input") goto tag_input;            // INPUT / OUTPUT
+                    if (long_opt == "--demo") goto tag_demo;              //
+                    if (long_opt == "--len") goto tag_len;                //
+                    if (long_opt == "--output") goto tag_x_out;           //
+                    if (long_opt == "--compress") goto tag_compress;      // WORKFLOW
+                    if (long_opt == "--zip") goto tag_compress;           //
+                    if (long_opt == "--decompress") goto tag_decompress;  //
+                    if (long_opt == "--unzip") goto tag_decompress;       //
+                    if (long_opt == "--dry-run") goto tag_dryrun;         //
+                    if (long_opt == "--skip") goto tag_excl;              //
 				    if (long_opt == "--vector") goto tag_vector;          // VECTOR LENGTH
 				    if (long_opt == "--autotune") goto tag_autotune;      //
 				    if (long_opt == "--num-iter") {
@@ -282,130 +287,143 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
                                         	char* end;
                                         	this->sample_percentage = std::strtod(argv[++i], &end);
 					    }
-				    }
-                                case 'z':
-                                tag_compress:
-                                    szwf.lossy_compress = true;
-                                    break;
-                                case 'x':
-                                tag_decompress:
-                                    szwf.lossy_decompress = true;
-                                    break;
-                                case 'r':
-                                tag_dryrun:
-                                    szwf.lossy_dryrun = true;
-                                    break;
-                                // COMPRESSION CONFIG
-                                case 'm':  // mode
-                                tag_mode:
-                                    if (i + 1 <= argc) mode = string(argv[++i]);
-                                    break;
-                                // INPUT
-                                case 'l':
-                                tag_len:
-                                    if (i + 1 <= argc) {
-                                        std::stringstream   datalen(argv[++i]);
-                                        std::vector<string> dims;
-                                        while (datalen.good()) {
-                                            string substr;
-                                            getline(datalen, substr, ',');
-                                            dims.push_back(substr);
-                                        }
-                                        ndim = dims.size();
-                                        if (ndim == 1) {  //
-                                            auto d0 = str2int(dims[0].c_str());
-                                            dim4    = {d0, 1, 1, 1};
-                                        }
-                                        if (ndim == 2) {  //
-                                            auto d0 = str2int(dims[0].c_str()), d1 = str2int(dims[1].c_str());
-                                            dim4 = {d0, d1, 1, 1};
-                                        }
-                                        if (ndim == 3) {
-                                            auto d0 = str2int(dims[0].c_str()), d1 = str2int(dims[1].c_str());
-                                            auto d2 = str2int(dims[2].c_str());
-                                            dim4    = {d0, d1, d2, 1};
-                                        }
-                                        if (ndim == 4) {
-                                            auto d0 = str2int(dims[0].c_str()), d1 = str2int(dims[1].c_str());
-                                            auto d2 = str2int(dims[2].c_str()), d3 = str2int(dims[3].c_str());
-                                            dim4 = {d0, d1, d2, d3};
-                                        }
-                                    }
-                                    break;
-                                case 'i':
-                                tag_input:
-                                    if (i + 1 <= argc)
-                                    {
-                                        files.input_file = string(argv[++i]);
-                                        if (files.output_file == "") 
-                                        {
-                                            // add appropriate file endings
-                                            if (files.input_file.size() >= string(".sz").size() && 
-                                                files.input_file.compare(files.input_file.size() - string(".sz").size(), string(".sz").size(), string(".sz")) == 0) 
-                                            {
-                                                files.output_file = files.input_file + ".out";
-                                            }
-                                            else
-                                            {
-                                                files.output_file = files.input_file + ".sz";
-                                            }
-                                        }
-                                    }
-                                    break;
-                                    // alternative output
-                                case 'o':
-                                tag_x_out:
-                                    if (i + 1 <= argc) files.output_file = string(argv[++i]);
-                                    break;
-                                // demo datasets
-                                case 'D':
-                                tag_demo:
-                                    if (i + 1 <= argc) {
-                                        szwf.use_demo = true;
-                                        demo_dataset        = string(argv[++i]);
-                                    }
-                                    break;
-                                // DOCUMENT
-                                case 'h':
-                                tag_help:
-                                    vecszFullDoc();
-                                    exit(0);
-                                    break;
-                                case 'v':
-                                tag_version:
-                                    // TODO
-                                    cout << log_info << version_text << endl;
+                    }
+                    if (long_opt == "--show-histo") {
+                        szwf.show_histo = true;
+                    } 
+                    break;
+                case 'z':
+                tag_compress:
+                    szwf.lossy_compress = true;
+                    break;
+                case 'x':
+                tag_decompress:
+                    szwf.lossy_decompress = true;
+                    break;
+                case 'r':
+                tag_dryrun:
+                    szwf.lossy_dryrun = true;
+                    break;
+                // COMPRESSION CONFIG
+                case 'm':  // mode
+                tag_mode:
+                    if (i + 1 <= argc) mode = string(argv[++i]);
+                    break;
+                // INPUT
+                case 'l':
+                tag_len:
+                    if (i + 1 <= argc) {
+                        std::stringstream   datalen(argv[++i]);
+                        std::vector<string> dims;
+                        while (datalen.good()) {
+                            string substr;
+                            getline(datalen, substr, ',');
+                            dims.push_back(substr);
+                        }
+                        ndim = dims.size();
+                        if (ndim == 1) {  //
+                            auto d0 = str2int(dims[0].c_str());
+                            dim4    = {d0, 1, 1, 1};
+                        }
+                        if (ndim == 2) {  //
+                            auto d0 = str2int(dims[0].c_str()), d1 = str2int(dims[1].c_str());
+                            dim4 = {d0, d1, 1, 1};
+                        }
+                        if (ndim == 3) {
+                            auto d0 = str2int(dims[0].c_str()), d1 = str2int(dims[1].c_str());
+                            auto d2 = str2int(dims[2].c_str());
+                            dim4    = {d0, d1, d2, 1};
+                        }
+                        if (ndim == 4) {
+                            auto d0 = str2int(dims[0].c_str()), d1 = str2int(dims[1].c_str());
+                            auto d2 = str2int(dims[2].c_str()), d3 = str2int(dims[3].c_str());
+                            dim4 = {d0, d1, d2, d3};
+                        }
+                    }
+                    break;
+                case 'i':
+                tag_input:
+                    if (i + 1 <= argc)
+                    {
+                        files.input_file = string(argv[++i]);
+                        if (files.output_file == "") 
+                        {
+                            // add appropriate file endings
+                            if (files.input_file.size() >= string(".sz").size() && 
+                                files.input_file.compare(files.input_file.size() - string(".sz").size(), string(".sz").size(), string(".sz")) == 0) 
+                            {
+                                files.output_file = files.input_file + ".out";
+                            }
+                            else
+                            {
+                                files.output_file = files.input_file + ".sz";
+                            }
+                        }
+                    }
+                    break;
+                // alternative output
+                case 'o':
+                tag_x_out:
+                    if (i + 1 <= argc) files.output_file = string(argv[++i]);
+                    break;
+                // demo datasets
+                case 'D':
+                tag_demo:
+                    if (i + 1 <= argc) {
+                        szwf.use_demo = true;
+                        demo_dataset        = string(argv[++i]);
+                    }
+                    break;
+                // DOCUMENT
+                case 'S':
+                tag_excl:
+                    if (i + 1 <= argc) {
+                        string exclude(argv[++i]);
+                        if (exclude.find("huffman") != std::string::npos) { szwf.skip_huffman_enc = true; }
+                        if (exclude.find("write")   != std::string::npos) { szwf.skip_write_output = true; }
+                        if (exclude.find("verify")  != std::string::npos) { szwf.skip_write_output = true; }
+                    }
+                    break;
+                case 'h':
+                tag_help:
+                    vecszFullDoc();
+                    exit(0);
+                    break;
+                case 'v':
+                tag_version:
+                    // TODO
+                    cout << log_info << version_text << endl;
 				    exit(0);
-                                    break;
-                                // COMPRESSION CONFIG
-                                case 't':
-                                tag_type:
-                                    if (i + 1 <= argc) {
-                                        string s = string(string(argv[++i]));
-                                        if (s == "f32" or s == "fp4")
-                                            dtype = "f32";
-                                        else if (s == "f64" or s == "fp8")
-                                            dtype = "f64";
-                                    }
-                                    break;
-                                case 'e':
-                                tag_error_bound:
-                                    if (i + 1 <= argc) {
-                                        char* end;
-                                        this->eb = std::strtod(argv[++i], &end);
-                                    }
-                                    break;
-                                case 'V':
-                                tag_verbose:
-                                    verbose = true;
-                                    break;
-                                case 'd':
-                                tag_dict:
-                                    if (i + 1 <= argc) {
-                                        dict_size = str2int(argv[++i]);
-                                        radius    = dict_size / 2;
-                                    }
-                                    break;
+                    break;
+                // COMPRESSION CONFIG
+                case 't':
+                tag_type:
+                    if (i + 1 <= argc) {
+                        string s = string(string(argv[++i]));
+                        if (s == "f32" or s == "fp4")
+                            dtype = "f32";
+                        else if (s == "f64" or s == "fp8")
+                            dtype = "f64";
+                    }
+                    break;
+                case 'e':
+                tag_error_bound:
+                    if (i + 1 <= argc) {
+                        char* end;
+                        this->eb = std::strtod(argv[++i], &end);
+                    }
+                    break;
+                case 'V':
+                tag_verbose:
+                    verbose = true;
+                    break;
+                case 'd':
+                tag_dict:
+                    if (i + 1 <= argc) {
+                        dict_size = str2int(argv[++i]);
+                        radius    = dict_size / 2;
+                    }
+                    break;
 				case 'b':
 				tag_block:
 				    if (i + 1 <= argc) {
@@ -430,19 +448,19 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
 				    num_iterations = 10;
 				    sample_percentage = 1.0;
 				    break;
-                                default:
-                                    const char* notif_prefix = "invalid option value at position ";
-                                    char*       notif;
-                                    int         size = asprintf(&notif, "%d: %s", i, argv[i]);
-                                    cerr << log_err << notif_prefix << "\e[1m" << notif << "\e[0m"
-                                         << "\n";
-                                    cerr << string(log_null.length() + strlen(notif_prefix), ' ');
-                                    cerr << "\e[1m";
-                                    cerr << string(strlen(notif), '~');
-                                    cerr << "\e[0m\n";
-                                    trap(-1);
-                            }
-        	}
+                default:
+                    const char* notif_prefix = "invalid option value at position ";
+                    char*       notif;
+                    int         size = asprintf(&notif, "%d: %s", i, argv[i]);
+                    cerr << log_err << notif_prefix << "\e[1m" << notif << "\e[0m"
+                         << "\n";
+                    cerr << string(log_null.length() + strlen(notif_prefix), ' ');
+                    cerr << "\e[1m";
+                    cerr << string(strlen(notif), '~');
+                    cerr << "\e[0m\n";
+                    trap(-1);
+            }
+        }
         else {
             const char* notif_prefix = "invalid option at position ";
             char*       notif;

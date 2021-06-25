@@ -22,6 +22,11 @@ struct SZWorkflow
 	bool lossy_decompress{false};
 	bool lossy_dryrun{false};
 	bool autotune{false};
+	bool show_histo{false};
+
+    bool skip_write_output{false};
+    bool skip_huffman_enc{false};
+	bool skip_verify{false};
 };
 
 struct fileNames 
