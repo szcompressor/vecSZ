@@ -7,3 +7,8 @@ vecsz
 *.d
 *.o
 .vscode/*
+
+# dump-to-disk for debugging
+vecsz.code
+vecsz.compressed.outlier
+vecsz.outlier
