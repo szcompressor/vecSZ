@@ -27,8 +27,7 @@ namespace interface {
 
 template <typename T, typename Q>
 void Compress(argparse* ap,
-              size_t&   num_outlier,
-              bool      show_histo   = false) 
+              size_t&   num_outlier)
 {
     std::string const& dataset   = ap->demo_dataset;
     std::string& finame          = ap->files.input_file;
@@ -164,33 +163,41 @@ void Compress(argparse* ap,
     LogAll(log_info, "complete lossy compression:");
     LogAll(log_dbg, "compression time:", static_cast<duration_t>(tend - tstart).count(), "sec");
 
-    LogAll(log_info, "write", ap->files.output_file, len * (ap->dtype == "f32" ? sizeof(float) : sizeof(double)), "bytes,", ap->dtype);
-    auto wstart = hires::now();
-
-    { // organize necessary metadata and write to file
-        auto dims_metadata = new int[dims_L16[nDIM] + 1];
-        dims_metadata[0] = dims_L16[nDIM];
-        for (int i = 0; i < dims_L16[nDIM]; i++) dims_metadata[i + 1] = dims_L16[i];
-
-        auto len_metadata = new size_t[2];
-        len_metadata[0] = huff_size;
-        len_metadata[1] = num_outlier;
-
-        io::WriteArrayToBinary<int>(ap->files.output_file, dims_metadata, dims_L16[nDIM] + 1); 
-        io::AppendArrayToBinary<double>(ap->files.output_file, &(ap->eb), 1);
-        io::AppendArrayToBinary<size_t>(ap->files.output_file, len_metadata, 2); 
-        io::AppendArrayToBinary<uint8_t>(ap->files.output_file, huff_result, huff_size);
-        io::AppendArrayToBinary<T>(ap->files.output_file, outlier, num_outlier);
+    if (ap->szwf.show_histo)
+    {
+        analysis::histogram(std::string("bincode/quant.code"), code, len, 8);
+        analysis::getEntropy<Q>(code,len,ap->dict_size);
     }
 
-    auto wend = hires::now();
-    LogAll(log_dbg, "time writing datum:", static_cast<duration_t>(wend - wstart).count(), "sec");
+    if (not ap->szwf.skip_write_output)
+    {
+        LogAll(log_info, "write", ap->files.output_file, len * (ap->dtype == "f32" ? sizeof(float) : sizeof(double)), "bytes,", ap->dtype);
+        auto wstart = hires::now();
+
+        { // organize necessary metadata and write to file
+            auto dims_metadata = new int[dims_L16[nDIM] + 1];
+            dims_metadata[0] = dims_L16[nDIM];
+            for (int i = 0; i < dims_L16[nDIM]; i++) dims_metadata[i + 1] = dims_L16[i];
+
+            auto len_metadata = new size_t[2];
+            len_metadata[0] = huff_size;
+            len_metadata[1] = num_outlier;
+
+            io::WriteArrayToBinary<int>(ap->files.output_file, dims_metadata, dims_L16[nDIM] + 1); 
+            io::AppendArrayToBinary<double>(ap->files.output_file, &(ap->eb), 1);
+            io::AppendArrayToBinary<size_t>(ap->files.output_file, len_metadata, 2); 
+            io::AppendArrayToBinary<uint8_t>(ap->files.output_file, huff_result, len_metadata[0]);
+            io::AppendArrayToBinary<T>(ap->files.output_file, data, len_metadata[1]);
+        }
+
+        auto wend = hires::now();
+        LogAll(log_dbg, "time writing datum:", static_cast<duration_t>(wend - wstart).count(), "sec");
+    }
     
 } // end Compression
 
 template <typename T, typename Q>
-void Decompress(argparse*        ap,
-                bool             show_histo = false)
+void Decompress(argparse* ap)
 {            
     auto dstart = hires::now();
 
@@ -243,12 +250,40 @@ void Decompress(argparse*        ap,
     auto hend = hires::now();
     if (ap->verbose) LogAll(log_dbg, "huffman reconstruction time:", static_cast<duration_t>(hend - hstart).count(), "sec");
 
-    //reconstruct outliers array
+    // reconstruct outliers array
     for (size_t i = 0, oi = 0; i < len; i++)
     {
-       outlier[i] = (code[i] == 0) ? outliers[oi++] : 0;
+       outlier[i] = (code[i] == 0) ? outliers[oi] : 0;
+       oi = (code[i] == 0) ? oi + 1 : oi;
     }
 
+    FILE* fp = fopen("vecsz.compressed.outlier", "w");
+    for (size_t i = 0; i < lengths[1]; i++)
+    {
+        fprintf(fp,"%f ",outliers[i]);
+        if ( i != 0 && (i % 10) == 0) fprintf(fp,"\n");
+    }
+    fclose(fp);
+    printf("DONE! outlier 1\n");
+
+    fp = fopen("vecsz.code", "w");
+    for (size_t i = 0; i < len; i++)
+    {
+        fprintf(fp,"%d ",code[i]);
+        if ( i != 0 && (i % 10) == 0) fprintf(fp,"\n");
+    }
+    fclose(fp);
+    printf("DONE! code\n");
+    
+    fp = fopen("vecsz.outlier", "w");
+    for (size_t i = 0; i < len; i++)
+    {
+        fprintf(fp,"%f ",outlier[i]);
+        if ( i != 0 && (i % 10) == 0) fprintf(fp,"\n");
+    }
+    fclose(fp);
+    printf("DONE! outlier 2\n");
+    
 
     LogAll(log_info, "invoke reverse prediction-quantization");
     auto pqstart = hires::now();
@@ -289,21 +324,28 @@ void Decompress(argparse*        ap,
     auto pqend = hires::now();
     LogAll(log_dbg, "reverse pred+quant time:", static_cast<duration_t>(pqend - pqstart).count(), "sec");
 
-    LogAll(log_info, "write output to file",ap->files.output_file,len,"bytes");
-    auto wstart = hires::now();
-    io::WriteArrayToBinary(ap->files.output_file, xdata, len);
-    auto wend = hires::now();
-    if (ap->verbose) LogAll(log_dbg, "time writing datum:", static_cast<duration_t>(wend - wstart).count(), "sec");
+    if (not ap->szwf.skip_write_output)
+    {
+        LogAll(log_info, "write output to file",ap->files.output_file,len,"bytes");
+        auto wstart = hires::now();
+        io::WriteArrayToBinary(ap->files.output_file, xdata, len);
+        auto wend = hires::now();
+        if (ap->verbose) LogAll(log_dbg, "time writing datum:", static_cast<duration_t>(wend - wstart).count(), "sec");
+    }
 
     auto dend = hires::now();
     LogAll(log_dbg, "decompression time:", static_cast<duration_t>(dend - dstart).count(), "sec");
+    if (ap->szwf.show_histo)
+    {
+        analysis::histogram(std::string("bincode/quant.code"), code, len, 8);
+        analysis::histogram(std::string("reconstructed datum"), xdata, len, 16);
+    }
 
 } // end Decompress
 
 template <typename T, typename Q>
 void DryRun(argparse* ap,
-            size_t&   num_outlier,
-            bool      show_histo   = false) 
+            size_t&   num_outlier)
 {
     std::string const& dataset   = ap->demo_dataset;
     std::string& finame          = ap->files.input_file;
@@ -426,10 +468,10 @@ void DryRun(argparse* ap,
     double htime = static_cast<duration_t>(hend - hstart).count();
     if (ap->verbose) LogAll(log_dbg, "huffman time:", htime, "sec");
 
-    auto outliers = new T[len];
+    //auto outliers = new T[len];
     for (size_t i = 0; i < len; i++)
     {
-        outliers[num_outlier] = outlier[i];
+        //outliers[num_outlier] = outlier[i];
         num_outlier += (outlier[i] == 0) ? 0 : 1;
     }
     if (ap->verbose) LogAll(log_dbg, "number of outliers:", num_outlier);
@@ -438,16 +480,16 @@ void DryRun(argparse* ap,
     LogAll(log_info, "complete lossy compression:");
     LogAll(log_dbg, "compression time:", static_cast<duration_t>(tend - tstart).count(), "sec");
 
-    delete[] outlier;
+    //delete[] outlier;
     delete[] code;
 
     // ---------------------------------------END-COMPRESSION----------------------------------------
 
     // -------------------------------------BEGIN-DECOMPRESSION--------------------------------------
     auto dstart  = hires::now();
-    auto xdata   = new T[len];
     code    = new Q[len];
-    outlier = new T[len];
+    //outlier = new T[len];
+    alignas(32) auto xdata   = new T[len];
 
 
 	// huffman decode
@@ -459,10 +501,10 @@ void DryRun(argparse* ap,
     if (ap->verbose) LogAll(log_dbg, "huffman reconstruction time:", static_cast<duration_t>(hend - hstart).count(), "sec");
 
     //reconstruct outliers array
-    for (size_t i = 0, oi = 0; i < len; i++)
-    {
-       outlier[i] = (code[i] == 0) ? outliers[oi++] : 0;
-    }
+    // for (size_t i = 0, oi = 0; i < len; i++)
+    // {
+    //    outlier[i] = (code[i] == 0) ? outliers[oi++] : 0;
+    // }
 
     LogAll(log_info, "invoke reverse prediction-quantization");
     pqstart = hires::now();
@@ -509,13 +551,16 @@ void DryRun(argparse* ap,
     // --------------------------------------END-DECOMPRESSION---------------------------------------
     
     // -------------------------------------BEGIN-VERIFICATION---------------------------------------
-    if (show_histo)
+    if (not ap->szwf.skip_verify)
     {
-        analysis::histogram(std::string("original datum"), data, len, 16);
-        analysis::histogram(std::string("reconstructed datum"), xdata, len, 16);
+        if (ap->szwf.show_histo)
+        {
+            analysis::histogram(std::string("original datum"), data, len, 16);
+            analysis::histogram(std::string("reconstructed datum"), xdata, len, 16);
+        }
+        analysis::VerifyData<T>(&(ap->stat), xdata, data, len);
+        analysis::PrintMetrics<T>(&(ap->stat));
     }
-    analysis::VerifyData<T>(&(ap->stat), xdata, data, len);
-    analysis::PrintMetrics<T>(&(ap->stat));
     // ---------------------------------------END-VERIFICATION---------------------------------------
 }
 
