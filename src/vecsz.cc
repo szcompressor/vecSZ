@@ -25,6 +25,8 @@ int main(int argc, char** argv)
     auto ap = new ArgParse();
     ap->ParseVecszArgs(argc, argv);
 
+    if (ap->verbose) GetMachineProperties();
+
     if (ap->szwf.lossy_compress) vecsz::interface::Compress<float, int>(ap, nnz_outlier);
     else if (ap->szwf.lossy_decompress) vecsz::interface::Decompress<float, int>(ap);
     else if (ap->szwf.lossy_dryrun) vecsz::interface::DryRun<float, int>(ap, nnz_outlier);
