@@ -152,10 +152,10 @@ void Compress(argparse* ap,
     double htime = static_cast<duration_t>(hend - hstart).count();
     if (ap->verbose) LogAll(log_dbg, "huffman time:", htime, "sec");
 
+    auto outliers = new T[len];
     for (size_t i = 0; i < len; i++)
     {
-        data[num_outlier] = outlier[i];
-        num_outlier += (outlier[i] == 0) ? 0 : 1;
+        if (code[i] == 0) outliers[num_outlier++] = outlier[i]; 
     }
     if (ap->verbose) LogAll(log_dbg, "number of outliers:", num_outlier);
 
@@ -187,7 +187,7 @@ void Compress(argparse* ap,
             io::AppendArrayToBinary<double>(ap->files.output_file, &(ap->eb), 1);
             io::AppendArrayToBinary<size_t>(ap->files.output_file, len_metadata, 2); 
             io::AppendArrayToBinary<uint8_t>(ap->files.output_file, huff_result, len_metadata[0]);
-            io::AppendArrayToBinary<T>(ap->files.output_file, data, len_metadata[1]);
+            io::AppendArrayToBinary<T>(ap->files.output_file, outliers, len_metadata[1]);
         }
 
         auto wend = hires::now();
@@ -211,7 +211,7 @@ void Decompress(argparse* ap)
     auto eb       = io::ReadBinaryToNewArrayPos<double>(ap->files.input_file, 1, (ndims[0] + 1) * sizeof(int));
     auto lengths  = io::ReadBinaryToNewArrayPos<size_t>(ap->files.input_file, 2, sizeof(double) + (ndims[0] + 1) * sizeof(int));
     huffman       = io::ReadBinaryToNewArrayPos<uint8_t>(ap->files.input_file, lengths[0], 2 * sizeof(size_t) + sizeof(double) + (ndims[0] + 1) * sizeof(int));
-    auto outliers = io::ReadBinaryToNewArrayPos<float>(ap->files.input_file, lengths[1], lengths[0] * sizeof(uint8_t) + 2 * sizeof(size_t) + sizeof(double) + (ndims[0] + 1) * sizeof(int));
+    auto outliers = io::ReadBinaryToNewArrayPos<T>(ap->files.input_file, lengths[1], lengths[0] * sizeof(uint8_t) + 2 * sizeof(size_t) + sizeof(double) + (ndims[0] + 1) * sizeof(int));
     auto ldend    = hires::now();
     LogAll(log_dbg, "time loading datum:", static_cast<duration_t>(ldend - ldstart).count(), "sec");
 
@@ -251,39 +251,12 @@ void Decompress(argparse* ap)
     if (ap->verbose) LogAll(log_dbg, "huffman reconstruction time:", static_cast<duration_t>(hend - hstart).count(), "sec");
 
     // reconstruct outliers array
-    for (size_t i = 0, oi = 0; i < len; i++)
-    {
-       outlier[i] = (code[i] == 0) ? outliers[oi] : 0;
-       oi = (code[i] == 0) ? oi + 1 : oi;
-    }
-
-    FILE* fp = fopen("vecsz.compressed.outlier", "w");
-    for (size_t i = 0; i < lengths[1]; i++)
-    {
-        fprintf(fp,"%f ",outliers[i]);
-        if ( i != 0 && (i % 10) == 0) fprintf(fp,"\n");
-    }
-    fclose(fp);
-    printf("DONE! outlier 1\n");
-
-    fp = fopen("vecsz.code", "w");
+    size_t oi = 0;
     for (size_t i = 0; i < len; i++)
     {
-        fprintf(fp,"%d ",code[i]);
-        if ( i != 0 && (i % 10) == 0) fprintf(fp,"\n");
+       outlier[i] = (code[i] == 0) ? outliers[oi++] : 0;
     }
-    fclose(fp);
-    printf("DONE! code\n");
-    
-    fp = fopen("vecsz.outlier", "w");
-    for (size_t i = 0; i < len; i++)
-    {
-        fprintf(fp,"%f ",outlier[i]);
-        if ( i != 0 && (i % 10) == 0) fprintf(fp,"\n");
-    }
-    fclose(fp);
-    printf("DONE! outlier 2\n");
-    
+    if (ap->verbose) LogAll(log_dbg, "number of outliers:", oi);
 
     LogAll(log_info, "invoke reverse prediction-quantization");
     auto pqstart = hires::now();
@@ -378,6 +351,7 @@ void DryRun(argparse* ap,
     LogAll(log_info, "load", finame, len * (ap->dtype == "f32" ? sizeof(float) : sizeof(double)), "bytes,", ap->dtype);
     auto ldstart = hires::now(); 
     alignas(32) auto data     = io::ReadBinaryToNewArray<T>(finame, len);
+    alignas(32) auto data_cmp = io::ReadBinaryToNewArray<T>(finame, len);
     auto ldend   = hires::now(); 
     LogAll(log_dbg, "time loading datum:", static_cast<duration_t>(ldend - ldstart).count(), "sec");
     
@@ -468,11 +442,10 @@ void DryRun(argparse* ap,
     double htime = static_cast<duration_t>(hend - hstart).count();
     if (ap->verbose) LogAll(log_dbg, "huffman time:", htime, "sec");
 
-    //auto outliers = new T[len];
+    auto outliers = new T[len];
     for (size_t i = 0; i < len; i++)
     {
-        //outliers[num_outlier] = outlier[i];
-        num_outlier += (outlier[i] == 0) ? 0 : 1;
+        if (code[i] == 0) outliers[num_outlier++] = outlier[i]; 
     }
     if (ap->verbose) LogAll(log_dbg, "number of outliers:", num_outlier);
 
@@ -480,7 +453,7 @@ void DryRun(argparse* ap,
     LogAll(log_info, "complete lossy compression:");
     LogAll(log_dbg, "compression time:", static_cast<duration_t>(tend - tstart).count(), "sec");
 
-    //delete[] outlier;
+    delete[] outlier;
     delete[] code;
 
     // ---------------------------------------END-COMPRESSION----------------------------------------
@@ -488,9 +461,8 @@ void DryRun(argparse* ap,
     // -------------------------------------BEGIN-DECOMPRESSION--------------------------------------
     auto dstart  = hires::now();
     code    = new Q[len];
-    //outlier = new T[len];
+    outlier = new T[len];
     alignas(32) auto xdata   = new T[len];
-
 
 	// huffman decode
     LogAll(log_info, "invoke huffman tree reconstruction");
@@ -501,10 +473,13 @@ void DryRun(argparse* ap,
     if (ap->verbose) LogAll(log_dbg, "huffman reconstruction time:", static_cast<duration_t>(hend - hstart).count(), "sec");
 
     //reconstruct outliers array
-    // for (size_t i = 0, oi = 0; i < len; i++)
-    // {
-    //    outlier[i] = (code[i] == 0) ? outliers[oi++] : 0;
-    // }
+    size_t oi = 0;
+    for (size_t i = 0; i < len; i++)
+    {
+       outlier[i] = (code[i] == 0) ? outliers[oi++] : 0;
+    }
+    if (ap->verbose) LogAll(log_dbg, "number of outliers:", oi);
+
 
     LogAll(log_info, "invoke reverse prediction-quantization");
     pqstart = hires::now();
@@ -555,10 +530,10 @@ void DryRun(argparse* ap,
     {
         if (ap->szwf.show_histo)
         {
-            analysis::histogram(std::string("original datum"), data, len, 16);
+            analysis::histogram(std::string("original datum"), data_cmp, len, 16);
             analysis::histogram(std::string("reconstructed datum"), xdata, len, 16);
         }
-        analysis::VerifyData<T>(&(ap->stat), xdata, data, len);
+        analysis::VerifyData<T>(&(ap->stat), xdata, data_cmp, len);
         analysis::PrintMetrics<T>(&(ap->stat));
     }
     // ---------------------------------------END-VERIFICATION---------------------------------------
