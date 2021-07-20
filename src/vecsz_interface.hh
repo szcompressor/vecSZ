@@ -11,6 +11,7 @@
 #include "utils/analysis.hh"
 #include "utils/verify.hh"
 #include "utils/io.hh"
+#include "lossless.hh"
 
 
 
@@ -30,10 +31,7 @@ void Compress(argparse* ap,
               size_t&   num_outlier)
 {
     std::string const& dataset   = ap->demo_dataset;
-    std::string& finame          = ap->files.input_file;
-    auto dims_L16                = InitializeDims(ap);
-    auto eb_config               = new config_t(ap->dict_size, ap->eb);
-    float sample_pct             = ap->sample_percentage;
+    std::string& finame          = ap->files.input_file; auto dims_L16                = InitializeDims(ap); auto eb_config               = new config_t(ap->dict_size, ap->eb); float sample_pct             = ap->sample_percentage;
     size_t len                   = dims_L16[LEN];
     int blksz                    = ap->block_size;
     int vecsz                    = ap->vector_length;
@@ -42,9 +40,7 @@ void Compress(argparse* ap,
     alignas(32) auto outlier = new T[len]();
     alignas(32) auto code    = new Q[len]();
 
-    if (ap->mode == "r2r") 
-    {
-        double value_range = GetDatumValueRange<float>(finame, dims_L16[LEN]);
+    if (ap->mode == "r2r") { double value_range = GetDatumValueRange<float>(finame, dims_L16[LEN]);
         eb_config->ChangeToRelativeMode(value_range);
     }
     double const* const ebs_L4 = InitializeErrorBoundFamily(eb_config);
@@ -53,16 +49,16 @@ void Compress(argparse* ap,
     {
         ap->PrintArgs();
     }
-    
+
     auto tstart  = hires::now(); // begin timing
 
     // load data
     LogAll(log_info, "load", finame, len * (ap->dtype == "f32" ? sizeof(float) : sizeof(double)), "bytes,", ap->dtype);
-    auto ldstart = hires::now(); 
+    auto ldstart = hires::now();
     alignas(32) auto data     = io::ReadBinaryToNewArray<T>(finame, len);
-    auto ldend   = hires::now(); 
+    auto ldend   = hires::now();
     LogAll(log_dbg, "time loading datum:", static_cast<duration_t>(ldend - ldstart).count(), "sec");
-    
+
 
     ////////////////////////////////////////////////////////////////////////////////
     // start of compression
@@ -94,33 +90,33 @@ void Compress(argparse* ap,
 
     LogAll(log_info, "begin lossy-construction");
     auto pqstart = hires::now(); // begin timing
-    if (dims_L16[nDIM] == 1) 
+    if (dims_L16[nDIM] == 1)
     {
         #pragma omp parallel for
-        for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+        for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
         {
             pq::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
         }
-    } 
-    else if (dims_L16[nDIM] == 2) 
+    }
+    else if (dims_L16[nDIM] == 2)
     {
         #pragma omp parallel for
-        for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+        for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++)
         {
-            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
             {
                 pq::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
             }
         }
-    } 
-    else if (dims_L16[nDIM] == 3) 
+    }
+    else if (dims_L16[nDIM] == 3)
     {
         #pragma omp parallel for
-        for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++) 
+        for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++)
         {
-            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++)
             {
-                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
                 {
                     pq::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
                 }
@@ -155,7 +151,7 @@ void Compress(argparse* ap,
     auto outliers = new T[len];
     for (size_t i = 0; i < len; i++)
     {
-        if (code[i] == 0) outliers[num_outlier++] = outlier[i]; 
+        if (code[i] == 0) outliers[num_outlier++] = outlier[i];
     }
     if (ap->verbose) LogAll(log_dbg, "number of outliers:", num_outlier);
 
@@ -169,64 +165,107 @@ void Compress(argparse* ap,
         analysis::getEntropy<Q>(code,len,ap->dict_size);
     }
 
+    /* unsigned char** output_bytes; */
+    /* unsigned long outsize = vecsz::lossless::zlib_compress((unsigned char*)code, len, output_bytes, 3); */
+
     if (not ap->szwf.skip_write_output)
     {
-        LogAll(log_info, "write", ap->files.output_file, len * (ap->dtype == "f32" ? sizeof(float) : sizeof(double)), "bytes,", ap->dtype);
         auto wstart = hires::now();
 
         { // organize necessary metadata and write to file
+	    size_t data_size = num_outlier * sizeof(T) + huff_size * sizeof(uint8_t) + 1 * sizeof(double); /* OUTLIER + HUFF_ENC_DATA + EB */
+            LogAll(log_info, "write", ap->files.output_file, data_size * (ap->dtype == "f32" ? sizeof(float) : sizeof(double)), "bytes,", ap->dtype);
+
+	    //dimension info size
             auto dims_metadata = new int[dims_L16[nDIM] + 1];
             dims_metadata[0] = dims_L16[nDIM];
             for (int i = 0; i < dims_L16[nDIM]; i++) dims_metadata[i + 1] = dims_L16[i];
+	    data_size += (dims_L16[nDIM] + 1) * sizeof(int); /* + DIMS */
 
+	    //length of compressed data size
             auto len_metadata = new size_t[2];
             len_metadata[0] = huff_size;
             len_metadata[1] = num_outlier;
+	    data_size += 2 * sizeof(size_t); /* + LEN_METADATA */
 
-            io::WriteArrayToBinary<int>(ap->files.output_file, dims_metadata, dims_L16[nDIM] + 1); 
-            io::AppendArrayToBinary<double>(ap->files.output_file, &(ap->eb), 1);
-            io::AppendArrayToBinary<size_t>(ap->files.output_file, len_metadata, 2); 
-            io::AppendArrayToBinary<uint8_t>(ap->files.output_file, huff_result, len_metadata[0]);
-            io::AppendArrayToBinary<T>(ap->files.output_file, outliers, len_metadata[1]);
+	    auto data_out = new unsigned char[data_size];
+
+	    memcpy(data_out, dims_metadata, sizeof(int) * (dims_L16[nDIM] + 1));
+	    memcpy(data_out + sizeof(int) * (dims_L16[nDIM] + 1), &(ap->eb), sizeof(double));
+	    memcpy(data_out + sizeof(int) * (dims_L16[nDIM] + 1) + sizeof(double), len_metadata, sizeof(size_t) * 2);
+	    memcpy(data_out + sizeof(int) * (dims_L16[nDIM] + 1) + sizeof(double) + sizeof(size_t) * 2, huff_result, sizeof(uint8_t) * len_metadata[0]);
+	    memcpy(data_out + sizeof(int) * (dims_L16[nDIM] + 1) + sizeof(double) + sizeof(size_t) * 2 + sizeof(uint8_t) * len_metadata[0], outliers, sizeof(T) * len_metadata[1]);
+
+	    // lossless pass
+	    unsigned char* lossless_out = NULL;
+	    LogAll(log_dbg, "compression ratio before lossless pass:", (float)(len * sizeof(T)) / data_size);
+	    auto lossless_size = vecsz::lossless::sz_lossless_compress(0, 5, data_out, data_size, &lossless_out);
+	    LogAll(log_dbg, "compression ratio after lossless pass:", (float)(len * sizeof(T)) / lossless_size);
+
+	    io::WriteArrayToBinary<unsigned long>(ap->files.output_file, &(lossless_size), 1);
+	    io::AppendArrayToBinary<size_t>(ap->files.output_file, &(data_size), 1);
+	    io::AppendArrayToBinary<unsigned char>(ap->files.output_file, lossless_out, lossless_size);
+
         }
 
         auto wend = hires::now();
         LogAll(log_dbg, "time writing datum:", static_cast<duration_t>(wend - wstart).count(), "sec");
     }
-    
+
 } // end Compression
 
 template <typename T, typename Q>
 void Decompress(argparse* ap)
-{            
+{
     auto dstart = hires::now();
-
-    uint8_t* huffman;
 
     auto ldstart = hires::now();
     LogAll(log_info, "load", ap->files.input_file);
     // reading input file
-    auto ndims    = io::ReadBinaryToNewArray<int>(ap->files.input_file, 1); 
-    auto dims     = io::ReadBinaryToNewArrayPos<int>(ap->files.input_file, ndims[0], sizeof(int)); 
-    auto eb       = io::ReadBinaryToNewArrayPos<double>(ap->files.input_file, 1, (ndims[0] + 1) * sizeof(int));
-    auto lengths  = io::ReadBinaryToNewArrayPos<size_t>(ap->files.input_file, 2, sizeof(double) + (ndims[0] + 1) * sizeof(int));
-    huffman       = io::ReadBinaryToNewArrayPos<uint8_t>(ap->files.input_file, lengths[0], 2 * sizeof(size_t) + sizeof(double) + (ndims[0] + 1) * sizeof(int));
-    auto outliers = io::ReadBinaryToNewArrayPos<T>(ap->files.input_file, lengths[1], lengths[0] * sizeof(uint8_t) + 2 * sizeof(size_t) + sizeof(double) + (ndims[0] + 1) * sizeof(int));
+    auto lossless_size = io::ReadBinaryToNewArray<unsigned long>(ap->files.input_file, 1);
+    auto target_size   = io::ReadBinaryToNewArrayPos<size_t>(ap->files.input_file, 1, sizeof(unsigned long));
+    auto lossless_in   = io::ReadBinaryToNewArrayPos<unsigned char>(ap->files.input_file, lossless_size[0], sizeof(size_t) + sizeof(unsigned long));
+
+    /* auto ndims    = io::ReadBinaryToNewArray<int>(ap->files.input_file, 1); */
+    /* auto dims     = io::ReadBinaryToNewArrayPos<int>(ap->files.input_file, ndims[0], sizeof(int)); */
+    /* auto eb       = io::ReadBinaryToNewArrayPos<double>(ap->files.input_file, 1, (ndims[0] + 1) * sizeof(int)); */
+    /* auto lengths  = io::ReadBinaryToNewArrayPos<size_t>(ap->files.input_file, 2, sizeof(double) + (ndims[0] + 1) * sizeof(int)); */
+    /* huffman       = io::ReadBinaryToNewArrayPos<uint8_t>(ap->files.input_file, lengths[0], 2 * sizeof(size_t) + sizeof(double) + (ndims[0] + 1) * sizeof(int)); */
+    /* auto outliers = io::ReadBinaryToNewArrayPos<T>(ap->files.input_file, lengths[1], lengths[0] * sizeof(uint8_t) + 2 * sizeof(size_t) + sizeof(double) + (ndims[0] + 1) * sizeof(int)); */
     auto ldend    = hires::now();
     LogAll(log_dbg, "time loading datum:", static_cast<duration_t>(ldend - ldstart).count(), "sec");
 
-    ap->ndim = ndims[0];
+    // perform lossless pass
+    LogAll(log_info, "initiate lossless pass");
+    unsigned char *data_in = NULL;
+    vecsz::lossless::sz_lossless_decompress(0, lossless_in, lossless_size[0], &data_in, target_size[0]);
+
+    //assign values
+    int ndims = 0;
+    memcpy(&ndims, data_in, sizeof(int));
+    auto dims = new int[ndims];
+    memcpy(dims, data_in + sizeof(int), sizeof(int) * ndims);
+    double eb = 0.0;
+    memcpy(&eb, data_in + sizeof(int) * (1 + ndims), sizeof(double));
+    auto lengths = new size_t[2];
+    memcpy(lengths, data_in + sizeof(int) * (1 + ndims) + sizeof(double), sizeof(size_t) * 2);
+    auto huffman = new uint8_t[lengths[0]];
+    memcpy(huffman, data_in + sizeof(int) * (1 + ndims) + sizeof(double) + sizeof(size_t) * 2, sizeof(uint8_t) * lengths[0]);
+    auto outliers = new T[lengths[1]];
+    memcpy(outliers, data_in + sizeof(int) * (1 + ndims) + sizeof(double) + sizeof(size_t) * 2 + sizeof(uint8_t) * lengths[0], sizeof(T) * lengths[1]);
+
+    ap->ndim = ndims;
     if (ap->ndim == 1) {ap->dim4._0 = dims[0]; ap->dim4._1 = 1; ap->dim4._2 = 1; ap->dim4._3 = 1;}
     if (ap->ndim == 2) {ap->dim4._0 = dims[0]; ap->dim4._1 = dims[1]; ap->dim4._2 = 1; ap->dim4._3 = 1;}
     if (ap->ndim == 3) {ap->dim4._0 = dims[0]; ap->dim4._1 = dims[1]; ap->dim4._2 = dims[2]; ap->dim4._3 = 1;}
     if (ap->ndim == 4) {ap->dim4._0 = dims[0]; ap->dim4._1 = dims[1]; ap->dim4._2 = dims[2]; ap->dim4._3 = dims[3];}
 
-    ap->eb = eb[0];
-    
+    ap->eb = eb;
+
     size_t const* const dims_L16       = InitializeDims(ap);
     auto                eb_config      = new config_t(ap->dict_size, ap->eb);
     size_t              blksz          = ap->block_size;
-    std::string&        finame         = ap->files.input_file;  
+    std::string&        finame         = ap->files.input_file;
     size_t              len            = dims_L16[LEN];
     int                 num_iterations = ap->num_iterations;
     float               sample_pct     = ap->sample_percentage;
@@ -235,7 +274,7 @@ void Decompress(argparse* ap)
     auto                outlier        = new T[len];
     auto                code           = new Q[len];
 
-    if (ap->mode == "r2r") 
+    if (ap->mode == "r2r")
     {
         double value_range = GetDatumValueRange<float>(finame, dims_L16[LEN]);
         eb_config->ChangeToRelativeMode(value_range);
@@ -261,33 +300,33 @@ void Decompress(argparse* ap)
     LogAll(log_info, "invoke reverse prediction-quantization");
     auto pqstart = hires::now();
     // begin reverse prediction-quantization
-    if (dims_L16[nDIM] == 1) 
+    if (dims_L16[nDIM] == 1)
     {
         #pragma omp parallel for
-        for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+        for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
         {
             pq::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, blksz);
         }
     }
-    else if (dims_L16[nDIM] == 2) 
+    else if (dims_L16[nDIM] == 2)
     {
         #pragma omp parallel for
-        for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+        for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++)
         {
-            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
             {
                 pq::x_lorenzo_2d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1, blksz);
             }
         }
-    } 
-    else if (dims_L16[nDIM] == 3) 
+    }
+    else if (dims_L16[nDIM] == 3)
     {
         #pragma omp parallel for
-        for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++) 
+        for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++)
         {
-            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++)
             {
-                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
                 {
                     pq::x_lorenzo_3d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1, b2, blksz);
                 }
@@ -333,7 +372,7 @@ void DryRun(argparse* ap,
     alignas(32) auto outlier = new T[len]();
     alignas(32) auto code    = new Q[len]();
 
-    if (ap->mode == "r2r") 
+    if (ap->mode == "r2r")
     {
         double value_range = GetDatumValueRange<float>(finame, dims_L16[LEN]);
         eb_config->ChangeToRelativeMode(value_range);
@@ -344,17 +383,17 @@ void DryRun(argparse* ap,
     {
         ap->PrintArgs();
     }
-    
+
     auto tstart  = hires::now(); // begin timing
 
     // load data
     LogAll(log_info, "load", finame, len * (ap->dtype == "f32" ? sizeof(float) : sizeof(double)), "bytes,", ap->dtype);
-    auto ldstart = hires::now(); 
+    auto ldstart = hires::now();
     alignas(32) auto data     = io::ReadBinaryToNewArray<T>(finame, len);
     alignas(32) auto data_cmp = io::ReadBinaryToNewArray<T>(finame, len);
-    auto ldend   = hires::now(); 
+    auto ldend   = hires::now();
     LogAll(log_dbg, "time loading datum:", static_cast<duration_t>(ldend - ldstart).count(), "sec");
-    
+
 
     // -------------------------------------BEGIN-COMPRESSION----------------------------------------
     double timing;
@@ -384,33 +423,33 @@ void DryRun(argparse* ap,
 
     LogAll(log_info, "begin lossy-construction");
     auto pqstart = hires::now(); // begin timing
-    if (dims_L16[nDIM] == 1) 
+    if (dims_L16[nDIM] == 1)
     {
         #pragma omp parallel for
-        for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+        for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
         {
             pq::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
         }
-    } 
-    else if (dims_L16[nDIM] == 2) 
+    }
+    else if (dims_L16[nDIM] == 2)
     {
         #pragma omp parallel for
-        for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+        for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++)
         {
-            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
             {
                 pq::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
             }
         }
-    } 
-    else if (dims_L16[nDIM] == 3) 
+    }
+    else if (dims_L16[nDIM] == 3)
     {
         #pragma omp parallel for
-        for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++) 
+        for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++)
         {
-            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++)
             {
-                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
                 {
                     pq::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
                 }
@@ -445,7 +484,7 @@ void DryRun(argparse* ap,
     auto outliers = new T[len];
     for (size_t i = 0; i < len; i++)
     {
-        if (code[i] == 0) outliers[num_outlier++] = outlier[i]; 
+        if (code[i] == 0) outliers[num_outlier++] = outlier[i];
     }
     if (ap->verbose) LogAll(log_dbg, "number of outliers:", num_outlier);
 
@@ -484,33 +523,33 @@ void DryRun(argparse* ap,
     LogAll(log_info, "invoke reverse prediction-quantization");
     pqstart = hires::now();
     // begin reverse prediction-quantization
-    if (dims_L16[nDIM] == 1) 
+    if (dims_L16[nDIM] == 1)
     {
         #pragma omp parallel for
-        for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+        for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
         {
             pq::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, blksz);
         }
     }
-    else if (dims_L16[nDIM] == 2) 
+    else if (dims_L16[nDIM] == 2)
     {
         #pragma omp parallel for
-        for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+        for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++)
         {
-            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+            for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
             {
                 pq::x_lorenzo_2d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1, blksz);
             }
         }
-    } 
-    else if (dims_L16[nDIM] == 3) 
+    }
+    else if (dims_L16[nDIM] == 3)
     {
         #pragma omp parallel for
-        for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++) 
+        for (size_t b2 = 0; b2 < dims_L16[nBLK2]; b2++)
         {
-            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++) 
+            for (size_t b1 = 0; b1 < dims_L16[nBLK1]; b1++)
             {
-                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++) 
+                for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
                 {
                     pq::x_lorenzo_3d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, b1, b2, blksz);
                 }
@@ -524,7 +563,7 @@ void DryRun(argparse* ap,
     LogAll(log_dbg, "decompression time:", static_cast<duration_t>(dend - dstart).count(), "sec");
 
     // --------------------------------------END-DECOMPRESSION---------------------------------------
-    
+
     // -------------------------------------BEGIN-VERIFICATION---------------------------------------
     if (not ap->szwf.skip_verify)
     {

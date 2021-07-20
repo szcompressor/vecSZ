@@ -12,7 +12,7 @@
 #include "utils/query.hh"
 #include "utils/verify.hh"
 
-int main(int argc, char** argv) 
+int main(int argc, char** argv)
 {
     std::string eb_mode, dataset, datum_path;
     double      eb;
