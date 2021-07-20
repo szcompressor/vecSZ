@@ -40,7 +40,7 @@ typedef struct ErrorBoundConfigurator {
 
     void ChangeToTightBase2();
 
-    ErrorBoundConfigurator(int _capacity = 32768, double _precision = 1, double eb = 0.0001);
+    ErrorBoundConfigurator(int _capacity = 32768, double eb = 0.0001);
 
     void debug() const;
 

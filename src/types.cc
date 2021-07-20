@@ -37,7 +37,7 @@ double GetDatumValueRange(string fname, size_t l)
 template double GetDatumValueRange<float>(string fname, size_t l);
 template double GetDatumValueRange<double>(string fname, size_t l);
 
-ErrorBoundConfigurator::ErrorBoundConfigurator(int _capacity, double _precision, double eb)
+ErrorBoundConfigurator::ErrorBoundConfigurator(int _capacity, double eb)
 {
     int _base = 10;
     capacity = _capacity;
@@ -89,5 +89,6 @@ double* InitializeErrorBoundFamily(config_t* eb_config)
     ebs_L4[1]   = 1 / eb_config->eb_final;        // 1/eb
     ebs_L4[2]   = 2 * eb_config->eb_final;        // 2* eb
     ebs_L4[3]   = 1 / (2 * eb_config->eb_final);  // 1/(2*eb)
+    cout << log_dbg << "final.eb:\t" << eb_config->eb_final << endl;
     return ebs_L4;
 }
