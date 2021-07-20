@@ -49,30 +49,31 @@ void ArgParse::vecszFullDoc()
 
 void ArgParse::PrintArgs()
 {
-	cout << log_cfg << "Input File:          " << files.input_file                                             << endl;
-	cout << log_cfg << "Output File:         " << files.output_file                                            << endl;
-	cout << log_cfg << "Compress?            " << string((szwf.lossy_compress) ? "Yes" : "No")                 << endl;
-	cout << log_cfg << "Decompress?          " << string((szwf.lossy_decompress) ? "Yes" : "No")               << endl;
-	cout << log_cfg << "Dry-Run?             " << string((szwf.lossy_dryrun) ? "Yes" : "No")                   << endl;
-    cout << log_cfg << "Skip:                " << ""                                                           << endl;
-    cout << log_cfg << "  Huffman Encoding?  " << string((szwf.skip_huffman_enc) ? "Yes" : "No")               << endl;
-    cout << log_cfg << "  Write to file?     " << string((szwf.skip_write_output) ? "Yes" : "No")              << endl;
-    cout << log_cfg << "  Verification?      " << string((szwf.skip_verify) ? "Yes" : "No")                    << endl;
-	cout << log_cfg << "Demo Dataset?        " << string((demo_dataset.empty()) ? "No" : demo_dataset)         << endl;
-	cout << log_cfg << "Error Mode:          " << mode                                                         << endl;
-	cout << log_cfg << "Data Type:           " << dtype                                                        << endl;
-	cout << log_cfg << "Num. Dimensions:     " << ndim                                                         << endl;
-	cout << log_cfg << "Error Bound:         " << eb                                                           << endl;
-	cout << log_cfg << "Dimensions (x,y,z):  " << "(" << dim4._0 << "," << dim4._1 << "," << dim4._2 << ")"    << endl;
-	cout << log_cfg << "Num. Blocks (x,y,z): " << "(" << nblk4._0 << "," << nblk4._1 << "," << nblk4._2 << ")" << endl;
-	cout << log_cfg << "Dict. Size:          " << dict_size                                                    << endl;
-	cout << log_cfg << "Radius:              " << radius                                                       << endl;
-	cout << log_cfg << "Vector Length:       " << vector_length                                                << endl;
-	cout << log_cfg << "Block Size:          " << block_size                                                   << endl;
-	cout << log_cfg << "Verbose?             " << string((verbose) ? "Yes" : "No")                             << endl;
-	cout << log_cfg << "Autotune?            " << string((szwf.autotune) ? "Yes" : "No")                       << endl;
-	cout << log_cfg << "Num. Iterations:     " << num_iterations                                               << endl;
-	cout << log_cfg << "Sample Percentage:   " << sample_percentage                                            << endl;
+	cout << log_cfg << "Input File:          " << files.input_file                                                             << endl;
+	cout << log_cfg << "Output File:         " << files.output_file                                                            << endl;
+	cout << log_cfg << "Compress?            " << string((szwf.lossy_compress) ? "Yes" : "No")                                 << endl;
+	cout << log_cfg << "Decompress?          " << string((szwf.lossy_decompress) ? "Yes" : "No")                               << endl;
+	cout << log_cfg << "Dry-Run?             " << string((szwf.lossy_dryrun) ? "Yes" : "No")                                   << endl;
+    cout << log_cfg << "Skip:                " << ""                                                                           << endl;
+    cout << log_cfg << "  Huffman Encoding?  " << string((szwf.skip_huffman_enc) ? "Yes" : "No")                               << endl;
+    cout << log_cfg << "  Write to file?     " << string((szwf.skip_write_output) ? "Yes" : "No")                              << endl;
+    cout << log_cfg << "  Verification?      " << string((szwf.skip_verify) ? "Yes" : "No")                                    << endl;
+	cout << log_cfg << "Demo Dataset?        " << string((demo_dataset.empty()) ? "No" : demo_dataset)                         << endl;
+	cout << log_cfg << "Error Mode:          " << mode                                                                         << endl;
+	cout << log_cfg << "Data Type:           " << dtype                                                                        << endl;
+	cout << log_cfg << "Num. Dimensions:     " << ndim                                                                         << endl;
+	cout << log_cfg << "Error Bound:         " << eb                                                                           << endl;
+	cout << log_cfg << "Dimensions (x,y,z):  " << "(" << dim4._0 << "," << dim4._1 << "," << dim4._2 << ")"                    << endl;
+	cout << log_cfg << "Num. Blocks (x,y,z): " << "(" << nblk4._0 << "," << nblk4._1 << "," << nblk4._2 << ")"                 << endl;
+	cout << log_cfg << "Dict. Size:          " << dict_size                                                                    << endl;
+	cout << log_cfg << "Radius:              " << radius                                                                       << endl;
+	cout << log_cfg << "Vector Length:       " << vector_length                                                                << endl;
+	cout << log_cfg << "Block Size:          " << block_size                                                                   << endl;
+	cout << log_cfg << "Lossless Pass?       " << string((szwf.lossless_zstd) ? "Zstd" : (szwf.lossless_gzip) ? "Gzip" : "No") << endl;
+	cout << log_cfg << "Verbose?             " << string((verbose) ? "Yes" : "No")                                             << endl;
+	cout << log_cfg << "Autotune?            " << string((szwf.autotune) ? "Yes" : "No")                                       << endl;
+	cout << log_cfg << "  Num. Iterations:   " << num_iterations                                                               << endl;
+	cout << log_cfg << "  Sample Percentage: " << sample_percentage                                                            << endl;
 }
 
 void ArgParse::CheckArgs()
@@ -177,6 +178,13 @@ void ArgParse::CheckArgs()
 		}
 	}
 
+    if (szwf.lossless_pass and not (szwf.lossless_gzip or szwf.lossless_zstd))
+    {
+        cerr << log_warn << "No lossless compressor detected for -L option, defaulting to Gzip." << endl;
+        szwf.lossless_zstd = false;
+        szwf.lossless_gzip = true;
+    }
+
 	if (abort)
 	{
 		vecszDoc();
@@ -275,6 +283,7 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
                     if (long_opt == "--unzip") goto tag_decompress;       //
                     if (long_opt == "--dry-run") goto tag_dryrun;         //
                     if (long_opt == "--skip") goto tag_excl;              //
+                    if (long_opt == "--lossless") goto tag_lossless;      //
 				    if (long_opt == "--vector") goto tag_vector;          // VECTOR LENGTH
 				    if (long_opt == "--autotune") goto tag_autotune;      //
 				    if (long_opt == "--num-iter") {
@@ -382,6 +391,21 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
                         if (exclude.find("huffman") != std::string::npos) { szwf.skip_huffman_enc = true; }
                         if (exclude.find("write")   != std::string::npos) { szwf.skip_write_output = true; }
                         if (exclude.find("verify")  != std::string::npos) { szwf.skip_write_output = true; }
+                    }
+                    break;
+                case 'L':
+                tag_lossless:
+                    szwf.lossless_pass = true;
+                    if (i + 1 <= argc) {
+                        string s = string(argv[++i]);
+                        if (s != "" && (s == "gzip" || s == "GZIP")) 
+                        {
+                            szwf.lossless_gzip = true;
+                        }
+                        else if (s != "" && (s == "zstd" || s == "ZSTD")) 
+                        {
+                            szwf.lossless_zstd = true;
+                        }
                     }
                     break;
                 case 'h':

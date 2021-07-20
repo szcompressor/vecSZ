@@ -23,6 +23,9 @@ struct SZWorkflow
 	bool lossy_dryrun{false};
 	bool autotune{false};
 	bool show_histo{false};
+	bool lossless_pass{false};
+	bool lossless_gzip{false};
+	bool lossless_zstd{false};
 
     bool skip_write_output{false};
     bool skip_huffman_enc{false};
