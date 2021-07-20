@@ -1,3 +1,0 @@
-export PAPI_EVENTS="PAPI_L1_TCM,PAPI_L2_TCM,PAPI_L3_TCM"
-export PAPI_OUTPUT_DIRECTORY="/users/gadube/"
-export PAPI_REPORT=1
