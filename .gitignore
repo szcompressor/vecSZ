@@ -6,6 +6,7 @@ vecsz
 *.csv
 *.d
 *.o
+*.out
 .vscode/*
 tags
 
