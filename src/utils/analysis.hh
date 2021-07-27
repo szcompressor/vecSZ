@@ -12,6 +12,14 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../constants.hh"
+#include "format.hh"
+
+#define TOTAL_BORDER 0
+#define TOP_BORDER 1
+#define LEFT_BORDER 2
+#define FRONT_BORDER 3
+
 using std::cerr;
 using std::cout;
 using std::endl;
@@ -155,6 +163,144 @@ void histogram(
     }
     cout << endl;
     //    delete[] arr;
+}
+
+template<typename C>
+size_t* get_border_outliers_1d(size_t* outlier, C* code, size_t* dims, int blksz, int b0)
+{
+	size_t idx0 = b0 * blksz;
+	for (size_t i0 = 0; i0 < blksz; i0++)
+	{
+		size_t id = idx0 + i0;
+		if (id >= dims[DIM0]) continue;
+		if (code[id] == 0)
+		{
+			outlier[LEFT_BORDER] += (i0 == 0) ? 1 : 0;
+			outlier[TOTAL_BORDER] += (i0 == 0) ? 1 : 0;
+		}
+
+	}
+
+	return outlier;
+}
+
+template<typename C>
+size_t* get_border_outliers_2d(size_t* outlier, C* code, size_t* dims, int blksz, int b0, int b1)
+{
+	size_t idx0 = b0 * blksz;
+	size_t idx1 = b1 * blksz;
+	for (size_t i1 = 0; i1 < blksz; i1++)
+	{
+		for (size_t i0 = 0; i0 < blksz; i0++)
+		{
+			size_t gi1 = idx1 + i1;
+			size_t gi0 = idx0 + i0;
+			if (gi1 >= dims[DIM1] or gi0 >= dims[DIM0]) continue;
+			size_t id  = gi0 + gi1 * dims[DIM0];
+			if (code[id] == 0)
+			{
+				outlier[TOP_BORDER]  += (i0 == 0) ? 1 : 0;
+				outlier[LEFT_BORDER] += (i1 == 0) ? 1 : 0;
+				outlier[TOTAL_BORDER] += ((i0 == 0) || (i1 == 0)) ? 1 : 0;
+			}
+		}
+	}
+
+	return outlier;
+}
+
+template<typename C>
+size_t* get_border_outliers_3d(size_t* outlier, C* code, size_t* dims, int blksz, int b0, int b1, int b2)
+{
+	size_t idx0 = b0 * blksz;
+	size_t idx1 = b1 * blksz;
+	size_t idx2 = b2 * blksz;
+	for (size_t i2 = 0; i2 < blksz; i2++)
+	{
+		for (size_t i1 = 0; i1 < blksz; i1++)
+		{
+			for (size_t i0 = 0; i0 < blksz; i0++)
+			{
+				size_t gi2 = idx2 + i2;
+				size_t gi1 = idx1 + i1;
+				size_t gi0 = idx0 + i0;
+				if (gi2 >= dims[DIM2] or gi1 >= dims[DIM1] or gi0 >= dims[DIM0]) continue;
+				size_t id  = gi0 + gi1 * dims[DIM0] + gi2 * dims[DIM1] * dims[DIM0];
+				if (code[id] == 0)
+				{
+					outlier[TOP_BORDER]  += (i0 == 0) ? 1 : 0;
+					outlier[LEFT_BORDER] += (i1 == 0) ? 1 : 0;
+					outlier[FRONT_BORDER] += (i2 == 0) ? 1 : 0;
+					outlier[TOTAL_BORDER] += ((i0 == 0) || (i1 == 0) || (i2 == 0)) ? 1 : 0;
+				}
+			}
+		}
+	}
+
+	return outlier;
+}
+
+template<typename C>
+void get_outliers(size_t* dims, C* code, int blksz, size_t numOutlier)
+{
+    size_t* outlier = new size_t[4];
+    outlier[TOTAL_BORDER] = 0;
+    outlier[TOP_BORDER] = 0;
+    outlier[LEFT_BORDER] = 0;
+    outlier[FRONT_BORDER] = 0;
+
+    if (dims[nDIM] == 1)
+    {
+        #pragma omp parallel for
+        for (size_t b0 = 0; b0 < dims[nBLK0]; b0++)
+        {
+	    outlier = get_border_outliers_1d(outlier, code, dims, blksz, b0);
+        }
+    }
+    else if (dims[nDIM] == 2)
+    {
+        #pragma omp parallel for
+        for (size_t b1 = 0; b1 < dims[nBLK1]; b1++)
+        {
+            for (size_t b0 = 0; b0 < dims[nBLK0]; b0++)
+            {
+	    	outlier = get_border_outliers_2d(outlier, code, dims, blksz, b0, b1);
+            }
+        }
+    }
+    else if (dims[nDIM] == 3)
+    {
+        #pragma omp parallel for
+        for (size_t b2 = 0; b2 < dims[nBLK2]; b2++)
+        {
+            for (size_t b1 = 0; b1 < dims[nBLK1]; b1++)
+            {
+                for (size_t b0 = 0; b0 < dims[nBLK0]; b0++)
+                {
+	    	    outlier = get_border_outliers_3d(outlier, code, dims, blksz, b0, b1, b2);
+                }
+            }
+        }
+    }
+
+    float totBorder  = (outlier[TOTAL_BORDER] == 0) ? 0 : ( (float) outlier[TOTAL_BORDER] / numOutlier ) * 100;
+    float leftBorder = (outlier[LEFT_BORDER]  == 0) ? 0 : ( (float) outlier[LEFT_BORDER]  / numOutlier ) * 100;
+    float topBorder  = (outlier[TOP_BORDER]   == 0) ? 0 : ( (float) outlier[TOP_BORDER]   / numOutlier ) * 100;
+    float frntBorder = (outlier[FRONT_BORDER] == 0) ? 0 : ( (float) outlier[FRONT_BORDER] / numOutlier ) * 100;
+
+    // report results
+    cout << "--------------------- Outliers ---------------------" << endl;
+    cout << log_info << "Total Outliers:      " << numOutlier << "  " << endl;
+    cout << log_info << "\% Outliers:         " << (float) numOutlier / (dims[LEN]) << " \%" << endl;
+    cout << log_info << "Border Outliers:     " << outlier[TOTAL_BORDER] << "  " << endl;
+    cout << log_info << "\% Border Outliers:  " << totBorder << " \%"  << endl;
+    cout << log_info << "  Left Outliers:     " << outlier[LEFT_BORDER] << "  " << endl;
+    cout << log_info << "  \% Left Outliers:  " << leftBorder << " \%"  << endl;
+    cout << log_info << "  Top Outliers:      " << outlier[TOP_BORDER] << "  " << endl;
+    cout << log_info << "  \% Top Outliers:   " << topBorder << " \%"  << endl;
+    cout << log_info << "  Front Outliers:    " << outlier[FRONT_BORDER] << "  " << endl;
+    cout << log_info << "  \% Front Outliers: " << frntBorder << " \%"  << endl;
+    cout << "----------------------------------------------------" << endl;
 }
 
 }  // namespace analysis
