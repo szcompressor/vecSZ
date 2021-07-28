@@ -9,6 +9,7 @@ vecsz
 *.out
 .vscode/*
 tags
+.tags
 
 # dump-to-disk for debugging
 vecsz.code
