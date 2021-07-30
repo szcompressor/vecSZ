@@ -129,6 +129,29 @@ void ArgParse::CheckArgs()
 	// ensure reasonable dictionary size
 	assert(dict_size <= 65536);
 
+    // ensure correct file naming
+    if (szwf.lossy_compress)
+    {
+        if (files.output_file == "")
+        {
+            files.output_file = files.input_file + ".sz";
+        }
+    }
+    if (szwf.lossy_decompress)
+    {
+        if (files.output_file == "")
+        {
+            files.output_file = files.input_file + ".out";
+        }
+    }
+    if (szwf.lossy_dryrun)
+    {
+        if (files.output_file == "")
+        {
+            files.output_file = files.input_file + ".sz.out";
+        }
+    }
+
 	// make sure dry-run and compress/decompress do not occur at same time
 	if (szwf.lossy_dryrun and szwf.lossy_compress and szwf.lossy_decompress)
 	{
@@ -299,7 +322,7 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
                     }
                     if (long_opt == "--show-histo") {
                         szwf.show_histo = true;
-                    } 
+                    }
                     break;
                 case 'z':
                 tag_compress:
@@ -355,19 +378,6 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
                     if (i + 1 <= argc)
                     {
                         files.input_file = string(argv[++i]);
-                        if (files.output_file == "") 
-                        {
-                            // add appropriate file endings
-                            if (files.input_file.size() >= string(".sz").size() && 
-                                files.input_file.compare(files.input_file.size() - string(".sz").size(), string(".sz").size(), string(".sz")) == 0) 
-                            {
-                                files.output_file = files.input_file + ".out";
-                            }
-                            else
-                            {
-                                files.output_file = files.input_file + ".sz";
-                            }
-                        }
                     }
                     break;
                 // alternative output
@@ -398,11 +408,11 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
                     szwf.lossless_pass = true;
                     if (i + 1 <= argc) {
                         string s = string(argv[++i]);
-                        if (s != "" && (s == "gzip" || s == "GZIP")) 
+                        if (s != "" && (s == "gzip" || s == "GZIP"))
                         {
                             szwf.lossless_gzip = true;
                         }
-                        else if (s != "" && (s == "zstd" || s == "ZSTD")) 
+                        else if (s != "" && (s == "zstd" || s == "ZSTD"))
                         {
                             szwf.lossless_zstd = true;
                         }
