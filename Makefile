@@ -10,11 +10,6 @@ CXX = g++
 CPPFLAGS =
 CFLAGS =
 
-ifeq ($(optimize), True)
-	CPPFLAGS += -O3
-	CFLAGS += -O3
-endif
-
 BUILD_DIR := ./build
 SRC_DIR := ./src
 EXEC_DIR := ./bin
@@ -34,6 +29,11 @@ INC_FLAGS := $(addprefix -I, $(INC_DIRS))
 
 CPPFLAGS += $(INC_FLAGS) -MMD -MP
 CFLAGS += $(INC_FLAGS) -MMD -MP
+
+ifeq ($(optimize), True)
+	CPPFLAGS += -O3
+	CFLAGS += -O3
+endif
 
 ifeq ($(vector_support), None)
 	CPPFLAGS += -DMAX_VECTOR_LENGTH=-1 #-fopt-info-all=avx_info.txt #enable AVX2 generic
@@ -94,6 +94,7 @@ help:
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -rf $(EXEC_DIR)
+	rm -f  .tags
 
 
 -include $(DEPS)
