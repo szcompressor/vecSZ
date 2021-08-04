@@ -283,6 +283,7 @@ void get_outliers(size_t* dims, C* code, int blksz, size_t numOutlier)
         }
     }
 
+    float outlierPct = ((float)numOutlier / dims[LEN]) * 100;
     float totBorder  = (outlier[TOTAL_BORDER] == 0) ? 0 : ( (float) outlier[TOTAL_BORDER] / numOutlier ) * 100;
     float leftBorder = (outlier[LEFT_BORDER]  == 0) ? 0 : ( (float) outlier[LEFT_BORDER]  / numOutlier ) * 100;
     float topBorder  = (outlier[TOP_BORDER]   == 0) ? 0 : ( (float) outlier[TOP_BORDER]   / numOutlier ) * 100;
@@ -291,7 +292,7 @@ void get_outliers(size_t* dims, C* code, int blksz, size_t numOutlier)
     // report results
     cout << "--------------------- Outliers ---------------------" << endl;
     cout << log_info << "Total Outliers:      " << numOutlier << "  " << endl;
-    cout << log_info << "\% Outliers:         " << (float) numOutlier / (dims[LEN]) << " \%" << endl;
+    cout << log_info << "\% Outliers:         " << outlierPct << " \%" << endl;
     cout << log_info << "Border Outliers:     " << outlier[TOTAL_BORDER] << "  " << endl;
     cout << log_info << "\% Border Outliers:  " << totBorder << " \%"  << endl;
     cout << log_info << "  Left Outliers:     " << outlier[LEFT_BORDER] << "  " << endl;
