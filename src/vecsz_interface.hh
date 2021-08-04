@@ -13,6 +13,7 @@
 #include "utils/verify.hh"
 #include "utils/io.hh"
 #include "utils/datapack.hh"
+#include "utils/padding.hh"
 
 
 namespace pq  = vecsz::predictor_quantizer;
@@ -71,6 +72,14 @@ void* Compress(argparse* ap,
         LogAll(log_dbg, "autotune time:", static_cast<duration_t>(aend - astart).count(), "sec");
     }
 
+    // find global padding value using entire dataset
+    if (ap->szwf.global_padding)
+    {
+        size_t pad_dims[3] {dims_L16[DIM0], dims_L16[DIM1], dims_L16[DIM2]};
+        ap->pad_constant = padding::find_pad_value<T>(data_in, ap->pad_type, pad_dims, ap->pad_constant);
+        ap->pad_type = CONST_VAL;
+    }
+
     int CN_OPS, LN_OPS;
     if (dims_L16[nDIM] == 3) {
         CN_OPS = 15;
@@ -102,7 +111,7 @@ void* Compress(argparse* ap,
         {
             for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
             {
-                pq::c_lorenzo_2d1l<T, Q>(data_in, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
+                pq::c_lorenzo_2d1l<T, Q>(data_in, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz, ap->szwf, ap->pad_constant, ap->pad_type);
             }
         }
     }
@@ -115,7 +124,7 @@ void* Compress(argparse* ap,
             {
                 for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
                 {
-                    pq::c_lorenzo_3d1l<T, Q>(data_in, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
+                    pq::c_lorenzo_3d1l<T, Q>(data_in, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz, ap->szwf, ap->pad_constant, ap->pad_type);
                 }
             }
         }

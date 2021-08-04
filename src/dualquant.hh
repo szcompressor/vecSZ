@@ -7,6 +7,7 @@
 
 #include "types.hh"
 #include "constants.hh"
+#include "utils/padding.hh"
 
 namespace vecsz
 {
@@ -184,11 +185,32 @@ namespace vecsz
                         size_t b0,
                         size_t b1,
                         int blksz,
-                        int vector_reg)
+                        int vector_reg,
+                        struct SZWorkflow szwf,
+                        T pad_constant,
+                        int pad_type)
     {
-      T _s[blksz + 1][blksz + 1]; // 2D interpretation of data
+      alignas(32) T _s[blksz + 1][blksz + 1]; // 2D interpretation of data
 
-      memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(T));
+      if (szwf.block_padding or szwf.global_padding)
+      {
+        size_t pad_dims[3] {(size_t)blksz, (size_t)blksz, 1};
+        T* block = padding::fill_2d_block<T>(data, pad_dims, blksz, b0, b1);
+        T* _sptr = padding::block_pad<T>(block, dims_L16[nDIM], pad_type, blksz, pad_constant, ebs_L4[EBx2_r]);
+        memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1));
+        free(block);
+        _sptr = NULL;
+      }
+      else if (szwf.edge_padding)
+      {
+        size_t pad_dims[3] {(size_t)blksz, (size_t)blksz, 1};
+        T* block = padding::fill_2d_block<T>(data, pad_dims, blksz, b0, b1);
+        T* _sptr = padding::edge_pad<T>(block, dims_L16[nDIM], pad_type, pad_dims, blksz, pad_constant, ebs_L4[EBx2_r]);
+        memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1));
+        free(block);
+        _sptr = NULL;
+      }
+      else memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(T));
       auto radius = static_cast<Q>(dims_L16[RADIUS]);
 
       size_t _idx1 = b1 * blksz;
@@ -489,10 +511,32 @@ namespace vecsz
                         size_t b1,
                         size_t b2,
                         int blksz,
-                        int vector_reg)
+                        int vector_reg,
+                        struct SZWorkflow szwf,
+                        T pad_constant,
+                        int pad_type)
     {
-      T __attribute__((aligned(64))) _s[blksz + 1][blksz + 1][blksz + 1];
-      memset(_s, 0, (blksz + 1) * (blksz + 1) * (blksz + 1) * sizeof(T));
+      alignas(32) T _s[blksz + 1][blksz + 1][blksz + 1];
+
+      if (szwf.block_padding or szwf.global_padding)
+      {
+        size_t pad_dims[3] {(size_t)blksz, (size_t)blksz, (size_t)blksz};
+        T* block = padding::fill_3d_block<T>(data, pad_dims, blksz, b0, b1, b2);
+        T* _sptr = padding::block_pad<T>(block, dims_L16[nDIM], pad_type, blksz, pad_constant, ebs_L4[EBx2_r]);
+        memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1) * (blksz + 1));
+        free(block);
+        _sptr = NULL;
+      }
+      else if (szwf.edge_padding)
+      {
+        size_t pad_dims[3] {(size_t)blksz, (size_t)blksz, (size_t)blksz};
+        T* block = padding::fill_3d_block<T>(data, pad_dims, blksz, b0, b1, b2);
+        T* _sptr = padding::edge_pad<T>(block, dims_L16[nDIM], pad_type, pad_dims, blksz, pad_constant, ebs_L4[EBx2_r]);
+        memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1) * (blksz + 1));
+        free(block);
+        _sptr = NULL;
+      }
+      else memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(T));
       auto radius = static_cast<Q>(dims_L16[RADIUS]);
 
       size_t _idx2 = b2 * blksz;

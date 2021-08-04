@@ -32,38 +32,38 @@ double run_sample_blocks(argparse* ap, T* data, T* outlier, Q* code, size_t cons
     size_t nsamples = (sample_pct / 100) * nblocks + 1;
 
     int iterations = num_iterations;
-    for (int i = 0; i < iterations + 1; i++) 
+    for (int i = 0; i < iterations + 1; i++)
     {
         srand(1);
         if (i == 1) start = hires::now(); //begin timing
 
-        if (dims_L16[nDIM] == 1) 
+        if (dims_L16[nDIM] == 1)
         {
             #pragma omp parallel for
-            for (size_t n = 0; n < nsamples; n++) 
+            for (size_t n = 0; n < nsamples; n++)
             {
                 size_t b0 = rand() % dims_L16[nBLK0];
                 pq::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
             }
-        } else if (dims_L16[nDIM] == 2) 
+        } else if (dims_L16[nDIM] == 2)
         {
             #pragma omp parallel for
-            for (size_t n = 0; n < nsamples; n++) 
+            for (size_t n = 0; n < nsamples; n++)
             {
                 size_t b0 = rand() % dims_L16[nBLK0];
                 size_t b1 = rand() % dims_L16[nBLK1];
-                pq::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz);
+                pq::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz, ap->szwf, ap->pad_constant, ap->pad_type);
             }
-        } 
-        else if (dims_L16[nDIM] == 3) 
+        }
+        else if (dims_L16[nDIM] == 3)
         {
             #pragma omp parallel for
-            for (size_t n = 0; n < nsamples; n++) 
+            for (size_t n = 0; n < nsamples; n++)
             {
                 size_t b0 = rand() % dims_L16[nBLK0];
                 size_t b1 = rand() % dims_L16[nBLK1];
                 size_t b2 = rand() % dims_L16[nBLK2];
-                pq::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz);
+                pq::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz, ap->szwf, ap->pad_constant, ap->pad_type);
             }
         }
     }//end iterations

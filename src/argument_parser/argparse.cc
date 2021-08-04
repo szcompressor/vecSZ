@@ -152,6 +152,22 @@ void ArgParse::CheckArgs()
         }
     }
 
+    // make sure only one type of padding at a time
+    if (szwf.global_padding and (szwf.block_padding or szwf.edge_padding))
+    {
+		cerr << log_warn << "Only use one type of alternative padding at a time." << endl;
+		cerr << log_warn << "Will global-pad only." << endl << endl;
+        szwf.block_padding = false;
+        szwf.edge_padding = false;
+    }
+    else if (szwf.block_padding and szwf.edge_padding)
+    {
+		cerr << log_warn << "Only use one type of alternative padding at a time." << endl;
+		cerr << log_warn << "Will block-pad only." << endl << endl;
+        szwf.edge_padding = false;
+        szwf.global_padding = false;
+    }
+
 	// make sure dry-run and compress/decompress do not occur at same time
 	if (szwf.lossy_dryrun and szwf.lossy_compress and szwf.lossy_decompress)
 	{
@@ -305,6 +321,7 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
                     if (long_opt == "--decompress") goto tag_decompress;  //
                     if (long_opt == "--unzip") goto tag_decompress;       //
                     if (long_opt == "--dry-run") goto tag_dryrun;         //
+                    if (long_opt == "--padding") goto tag_padding;        //
                     if (long_opt == "--skip") goto tag_excl;              //
                     if (long_opt == "--lossless") goto tag_lossless;      //
 				    if (long_opt == "--vector") goto tag_vector;          // VECTOR LENGTH
@@ -391,6 +408,24 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
                     if (i + 1 <= argc) {
                         szwf.use_demo = true;
                         demo_dataset        = string(argv[++i]);
+                    }
+                    break;
+                // padding
+                case 'p':
+                tag_padding:
+                    if (i + 1 <= argc) {
+                        string pad(argv[++i]);
+                        if (pad.find("global") != std::string::npos) {szwf.global_padding = true;}
+                        if (pad.find("block") != std::string::npos) {szwf.block_padding = true;}
+                        if (pad.find("edge") != std::string::npos) {szwf.edge_padding = true;}
+                        if (pad.find("max") != std::string::npos) {pad_type = 0;}
+                        if (pad.find("min") != std::string::npos) {pad_type = 1;}
+                        if (pad.find("avg") != std::string::npos) {pad_type = 2;}
+                        if (pad.find("constant") != std::string::npos) {pad_type = 3;}
+
+                        std::regex re("[0-9]*[.][0-9]+|[0-9]+");
+                        std::smatch match;
+                        if (std::regex_search(pad, match, re) == true) {pad_constant = std::stof(match.str(0));}
                     }
                     break;
                 // DOCUMENT

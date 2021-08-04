@@ -15,7 +15,7 @@
 
 using std::string;
 
-struct SZWorkflow 
+struct SZWorkflow
 {
 	bool use_demo{false};
 	bool lossy_compress{false};
@@ -30,15 +30,19 @@ struct SZWorkflow
     bool skip_write_output{false};
     bool skip_huffman_enc{false};
 	bool skip_verify{false};
+
+    bool global_padding{false};
+    bool block_padding{false};
+    bool edge_padding{false};
 };
 
-struct fileNames 
+struct fileNames
 {
 	string input_file;
 	string output_file;
 };
 
-class ArgParse 
+class ArgParse
 {
 	public:
 
@@ -67,6 +71,10 @@ class ArgParse
 		int      vector_length{MAX_VECTOR_LENGTH};
 		int      block_size{8};
 		int      num_iterations{-1};
+
+        float global_pad_value{0};
+        float pad_constant{0};
+        int pad_type{3};
 
 		bool verbose{false};
 
