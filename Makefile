@@ -7,7 +7,7 @@ optimize ?= True
 
 CC = gcc
 CXX = g++
-CPPFLAGS =
+CPPFLAGS = -Wall
 CFLAGS =
 
 BUILD_DIR := ./build
