@@ -3,6 +3,8 @@
 
 #include <cstddef>
 #include <math.h>
+#include <string> //REMOVE NOW
+#include <fstream> //REMOVE NOW
 #include <immintrin.h> //avx intrinsics
 
 #include "types.hh"
@@ -15,7 +17,7 @@ namespace vecsz
   {
 
     template <typename T, typename Q>
-    void c_lorenzo_1d1l(T *data, T *outlier, Q *bcode, size_t const *const dims_L16, double const *const ebs_L4, size_t b0, int blksz, int vector_reg)
+    void c_lorenzo_1d1l(T *data, T *outlier, Q *bcode, size_t const *const dims_L16, double const *const ebs_L4, size_t b0, size_t blksz, int vector_reg)
     {
       auto radius = static_cast<Q>(dims_L16[RADIUS]);
       size_t _idx0 = b0 * blksz;
@@ -123,8 +125,6 @@ namespace vecsz
         }
 #endif
 
-        const __m256 veb_256 = _mm256_set1_ps(ebs_L4[EBx2_r]);
-        const __m256 vzero_256 = _mm256_setzero_ps();
         const __m256 vradius_256 = _mm256_set1_ps(radius);
         const __m256i mask = _mm256_set1_epi32(0xFFFFFFFF);
         __m256i pMask_256 = _mm256_set_epi32(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0);
@@ -184,31 +184,35 @@ namespace vecsz
                         double const *const ebs_L4,
                         size_t b0,
                         size_t b1,
-                        int blksz,
+                        size_t blksz,
                         int vector_reg,
                         struct SZWorkflow szwf,
                         T pad_constant,
-                        int pad_type)
+                        int pad_type,
+                        T* pad_vals,
+                        size_t* pad_idx)
     {
-      alignas(32) T _s[blksz + 1][blksz + 1]; // 2D interpretation of data
+      alignas(32) T _s[blksz + 1][blksz + 1] {0}; // 2D interpretation of data
 
+      T* _sptr;
       if (szwf.block_padding or szwf.global_padding)
       {
-        size_t pad_dims[3] {(size_t)blksz, (size_t)blksz, 1};
-        T* block = padding::fill_2d_block<T>(data, pad_dims, blksz, b0, b1);
-        T* _sptr = padding::block_pad<T>(block, dims_L16[nDIM], pad_type, blksz, pad_constant, ebs_L4[EBx2_r]);
+        T block_pad_value;
+        T* block = padding::fill_2d_block<T>(data, dims_L16, blksz, b0, b1);
+        _sptr = padding::block_pad<T>(block, dims_L16[nDIM], pad_type, blksz, pad_constant, ebs_L4[EBx2_r], &block_pad_value);
+        if (szwf.block_padding) pad_vals[(*pad_idx)++] = block_pad_value;
         memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1));
         free(block);
-        _sptr = NULL;
       }
       else if (szwf.edge_padding)
       {
+        T* edge_pad_values = (T *)malloc(sizeof(T) * dims_L16[nDIM]);
         size_t pad_dims[3] {(size_t)blksz, (size_t)blksz, 1};
-        T* block = padding::fill_2d_block<T>(data, pad_dims, blksz, b0, b1);
-        T* _sptr = padding::edge_pad<T>(block, dims_L16[nDIM], pad_type, pad_dims, blksz, pad_constant, ebs_L4[EBx2_r]);
+        T* block = padding::fill_2d_block<T>(data, dims_L16, blksz, b0, b1);
+        _sptr = padding::edge_pad<T>(block, dims_L16[nDIM], pad_type, pad_dims, blksz, pad_constant, ebs_L4[EBx2_r], &edge_pad_values);
         memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1));
+        for (size_t i = 0; i < dims_L16[nDIM]; i++) pad_vals[(*pad_idx)++] = edge_pad_values[i];
         free(block);
-        _sptr = NULL;
       }
       else memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(T));
       auto radius = static_cast<Q>(dims_L16[RADIUS]);
@@ -229,14 +233,12 @@ namespace vecsz
 #endif
         __m256 vradius8 = _mm256_set1_ps(radius);
         __m256 vebx2_8 = _mm256_set1_ps(ebs_L4[EBx2_r]);
-        __m256 vzero8 = _mm256_setzero_ps();
         __m256i mask = _mm256_set1_epi32(0xFFFFFFFF);
 
         //prequantization
         for (size_t i1 = 0; i1 < blksz; i1++)
         {
           size_t i0 = 0;
-          size_t gi1 = _idx1 + i1;
           size_t id = _idx0 + (_idx1 + i1) * dims_L16[DIM0];
           size_t blk_end = _idx0 + (_idx1 + i1) * dims_L16[DIM0] + blksz;
           size_t blk_end16 = (blk_end & ~0xF);
@@ -363,14 +365,12 @@ namespace vecsz
 #endif
         __m256 vradius8 = _mm256_set1_ps(radius);
         __m256 vebx2_8 = _mm256_set1_ps(ebs_L4[EBx2_r]);
-        __m256 vzero8 = _mm256_setzero_ps();
         __m256i mask = _mm256_set1_epi32(0xFFFFFFFF);
 
         //prequantization
         for (size_t i1 = 0; i1 < blksz; i1++)
         {
           size_t i0 = 0;
-          size_t gi1 = _idx1 + i1;
           size_t id = _idx0 + (_idx1 + i1) * dims_L16[DIM0];
           size_t blk_end = _idx0 + (_idx1 + i1) * dims_L16[DIM0] + blksz;
           size_t blk_end16 = (blk_end & ~0xF);
@@ -499,6 +499,7 @@ namespace vecsz
           // vend1 = _mm256_add_ps(vend1,vincr);
         }
       }
+
     }
 
     template <typename T, typename Q>
@@ -510,31 +511,35 @@ namespace vecsz
                         size_t b0,
                         size_t b1,
                         size_t b2,
-                        int blksz,
+                        size_t blksz,
                         int vector_reg,
                         struct SZWorkflow szwf,
                         T pad_constant,
-                        int pad_type)
+                        int pad_type,
+                        T* pad_vals,
+                        size_t* pad_idx)
     {
-      alignas(32) T _s[blksz + 1][blksz + 1][blksz + 1];
+      alignas(32) T _s[blksz + 1][blksz + 1][blksz + 1] {0};
 
+      T* _sptr;
       if (szwf.block_padding or szwf.global_padding)
       {
-        size_t pad_dims[3] {(size_t)blksz, (size_t)blksz, (size_t)blksz};
-        T* block = padding::fill_3d_block<T>(data, pad_dims, blksz, b0, b1, b2);
-        T* _sptr = padding::block_pad<T>(block, dims_L16[nDIM], pad_type, blksz, pad_constant, ebs_L4[EBx2_r]);
+        T block_pad_value;
+        T* block = padding::fill_3d_block<T>(data, dims_L16, blksz, b0, b1, b2);
+        _sptr = padding::block_pad<T>(block, dims_L16[nDIM], pad_type, blksz, pad_constant, ebs_L4[EBx2_r], &block_pad_value);
         memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1) * (blksz + 1));
+        if (szwf.block_padding) pad_vals[(*pad_idx)++] = block_pad_value;
         free(block);
-        _sptr = NULL;
       }
       else if (szwf.edge_padding)
       {
+        T* edge_pad_values = (T *)malloc(sizeof(T) * dims_L16[nDIM]);
         size_t pad_dims[3] {(size_t)blksz, (size_t)blksz, (size_t)blksz};
-        T* block = padding::fill_3d_block<T>(data, pad_dims, blksz, b0, b1, b2);
-        T* _sptr = padding::edge_pad<T>(block, dims_L16[nDIM], pad_type, pad_dims, blksz, pad_constant, ebs_L4[EBx2_r]);
+        T* block = padding::fill_3d_block<T>(data, dims_L16, blksz, b0, b1, b2);
+        _sptr = padding::edge_pad<T>(block, dims_L16[nDIM], pad_type, pad_dims, blksz, pad_constant, ebs_L4[EBx2_r], &edge_pad_values);
         memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1) * (blksz + 1));
+        for (size_t i = 0; i < dims_L16[nDIM]; i++) pad_vals[(*pad_idx)++] = edge_pad_values[i];
         free(block);
-        _sptr = NULL;
       }
       else memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(T));
       auto radius = static_cast<Q>(dims_L16[RADIUS]);
@@ -556,7 +561,6 @@ namespace vecsz
 #endif
         __m256 vradius8 = _mm256_set1_ps(radius);
         __m256 vebx2_8 = _mm256_set1_ps(ebs_L4[EBx2_r]);
-        __m256 vzero8 = _mm256_setzero_ps();
         __m256i mask = _mm256_set1_epi32(0xFFFFFFFF);
 
         // prequantization
@@ -565,8 +569,6 @@ namespace vecsz
           for (size_t i1 = 0; i1 < blksz; i1++)
           {
             size_t i0 = 0;
-            size_t gi2 = _idx2 + i2;
-            size_t gi1 = _idx1 + i1;
             size_t id = _idx0 + (_idx1 + i1) * dims_L16[DIM0] +
                         (_idx2 + i2) * dims_L16[DIM1] * dims_L16[DIM0];
             size_t blk_end = _idx0 + (_idx1 + i1) * dims_L16[DIM0] +
@@ -619,8 +621,6 @@ namespace vecsz
           for (size_t i1 = 0; i1 < blksz; i1++)
           {
             size_t i0 = 0;
-            size_t gi2 = _idx2 + i2;
-            size_t gi1 = _idx1 + i1;
             size_t id = _idx0 + (_idx1 + i1) * dims_L16[DIM0] +
                         (_idx2 + i2) * dims_L16[DIM1] * dims_L16[DIM0];
             size_t blk_end = _idx0 + (_idx1 + i1) * dims_L16[DIM0] +
@@ -714,7 +714,6 @@ namespace vecsz
 #endif
         __m256 vradius8 = _mm256_set1_ps(radius);
         __m256 vebx2_8 = _mm256_set1_ps(ebs_L4[EBx2_r]);
-        __m256 vzero8 = _mm256_setzero_ps();
 
         // prequantization
         for (size_t i2 = 0; i2 < blksz; i2++)
@@ -722,8 +721,6 @@ namespace vecsz
           for (size_t i1 = 0; i1 < blksz; i1++)
           {
             size_t i0 = 0;
-            size_t gi2 = _idx2 + i2;
-            size_t gi1 = _idx1 + i1;
             size_t id = _idx0 + (_idx1 + i1) * dims_L16[DIM0] +
                         (_idx2 + i2) * dims_L16[DIM1] * dims_L16[DIM0];
             size_t blk_end = _idx0 + (_idx1 + i1) * dims_L16[DIM0] +
@@ -791,8 +788,6 @@ namespace vecsz
           for (size_t i1 = 0; i1 < blksz; i1++)
           {
             size_t i0 = 0;
-            size_t gi2 = _idx2 + i2;
-            size_t gi1 = _idx1 + i1;
             size_t id = _idx0 + (_idx1 + i1) * dims_L16[DIM0] +
                         (_idx2 + i2) * dims_L16[DIM1] * dims_L16[DIM0];
             size_t blk_end = _idx0 + (_idx1 + i1) * dims_L16[DIM0] +
@@ -885,6 +880,7 @@ namespace vecsz
           }
         }
       }
+
     }
 
     template <typename T, typename Q>
@@ -892,7 +888,7 @@ namespace vecsz
     {
       auto radius = static_cast<Q>(dims_L16[RADIUS]);
       size_t _idx0 = b0 * blksz;
-      for (size_t i0 = 0; i0 < blksz; i0++)
+      for (int i0 = 0; i0 < blksz; i0++)
       {
         size_t id = _idx0 + i0;
         if (id >= dims_L16[DIM0])
@@ -900,7 +896,7 @@ namespace vecsz
         T pred = id < _idx0 + 1 ? 0 : xdata[id - 1];
         xdata[id] = bcode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bcode[id] - radius));
       }
-      for (size_t i0 = 0; i0 < blksz; i0++)
+      for (int i0 = 0; i0 < blksz; i0++)
       {
         size_t id = _idx0 + i0;
         if (id >= dims_L16[DIM0])
@@ -910,18 +906,32 @@ namespace vecsz
     }
 
     template <typename T, typename Q>
-    void x_lorenzo_2d1l(T *xdata, T *outlier, Q *bcode, size_t const *const dims_L16, double _2EB, size_t b0, size_t b1, int blksz)
+    void x_lorenzo_2d1l(T *xdata, T *outlier, Q *bcode, size_t const *const dims_L16, double _2EB, size_t b0, size_t b1, int blksz, SZWorkflow szwf, size_t* pad_idx, T* pad_vals)
     {
-      T _s[blksz + 1][blksz + 1];
-      memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(T));
+      alignas(32) T _s[blksz + 1][blksz + 1];
       auto radius = static_cast<Q>(dims_L16[RADIUS]);
+
+      if (szwf.block_padding or szwf.global_padding)
+      {
+          T block_pad_value = 0;
+          block_pad_value = (szwf.block_padding) ? pad_vals[(*pad_idx)++] : pad_vals[0];
+          T* _sptr = padding::x_block_pad<T>(dims_L16[nDIM], blksz, block_pad_value);
+          memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1));
+      }
+      else if (szwf.edge_padding)
+      {
+        T edge_pad_values[2] {pad_vals[(*pad_idx)++], pad_vals[(*pad_idx)++]};
+        T* _sptr = padding::x_edge_pad<T>(dims_L16[nDIM], blksz, edge_pad_values);
+        memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1));
+      }
+      else memset(_s, 0, (blksz + 1) * (blksz + 1) * sizeof(T));
 
       size_t _idx1 = b1 * blksz;
       size_t _idx0 = b0 * blksz;
 
-      for (size_t i1 = 0; i1 < blksz; i1++)
+      for (int i1 = 0; i1 < blksz; i1++)
       {
-        for (size_t i0 = 0; i0 < blksz; i0++)
+        for (int i0 = 0; i0 < blksz; i0++)
         {
           size_t gi1 = _idx1 + i1;
           size_t gi0 = _idx0 + i0;
@@ -933,6 +943,7 @@ namespace vecsz
           xdata[id] = _s[i1 + 1][i0 + 1] * _2EB;
         }
       }
+
     }
 
     template <typename T, typename Q>
@@ -944,21 +955,38 @@ namespace vecsz
                         size_t b0,
                         size_t b1,
                         size_t b2,
-                        size_t blksz)
+                        int blksz,
+                        SZWorkflow szwf,
+                        size_t* pad_idx,
+                        T* pad_vals)
     {
-      T _s[blksz + 1][blksz + 1][blksz + 1];
-      memset(_s, 0, (blksz + 1) * (blksz + 1) * (blksz + 1) * sizeof(T));
+      alignas(32) T _s[blksz + 1][blksz + 1][blksz + 1];
       auto radius = static_cast<Q>(dims_L16[RADIUS]);
+
+      if (szwf.block_padding or szwf.global_padding)
+      {
+          T block_pad_value = 0;
+          block_pad_value = (szwf.block_padding) ? pad_vals[(*pad_idx)++] : pad_vals[0];
+          T* _sptr = padding::x_block_pad<T>(dims_L16[nDIM], blksz, block_pad_value);
+          memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1) * (blksz + 1));
+      }
+      else if (szwf.edge_padding)
+      {
+        T edge_pad_values[3] {pad_vals[(*pad_idx)++], pad_vals[(*pad_idx)++], pad_vals[(*pad_idx)++]};
+        T* _sptr = padding::x_edge_pad<T>(dims_L16[nDIM], blksz, edge_pad_values);
+        memcpy(_s, _sptr, sizeof(T) * (blksz + 1) * (blksz + 1) * (blksz + 1));
+      }
+      else memset(_s, 0, (blksz + 1) * (blksz + 1) * (blksz + 1) * sizeof(T));
 
       size_t _idx2 = b2 * blksz;
       size_t _idx1 = b1 * blksz;
       size_t _idx0 = b0 * blksz;
 
-      for (size_t i2 = 0; i2 < blksz; i2++)
+      for (int i2 = 0; i2 < blksz; i2++)
       {
-        for (size_t i1 = 0; i1 < blksz; i1++)
+        for (int i1 = 0; i1 < blksz; i1++)
         {
-          for (size_t i0 = 0; i0 < blksz; i0++)
+          for (int i0 = 0; i0 < blksz; i0++)
           {
             size_t gi2 = _idx2 + i2;
             size_t gi1 = _idx1 + i1;
@@ -974,6 +1002,7 @@ namespace vecsz
           }
         }
       }
+
     }
 
   } // namespace predictor_quantizer

@@ -30,12 +30,14 @@ double run_sample_blocks(argparse* ap, T* data, T* outlier, Q* code, size_t cons
 
     size_t nblocks  = (dims_L16[nBLK0] * dims_L16[nBLK1] * dims_L16[nBLK2] * dims_L16[nBLK3]);
     size_t nsamples = (sample_pct / 100) * nblocks + 1;
+    auto pad_vals   = new T[nblocks];
 
     int iterations = num_iterations;
     for (int i = 0; i < iterations + 1; i++)
     {
         srand(1);
         if (i == 1) start = hires::now(); //begin timing
+        size_t pad_idx  = 0;
 
         if (dims_L16[nDIM] == 1)
         {
@@ -52,7 +54,7 @@ double run_sample_blocks(argparse* ap, T* data, T* outlier, Q* code, size_t cons
             {
                 size_t b0 = rand() % dims_L16[nBLK0];
                 size_t b1 = rand() % dims_L16[nBLK1];
-                pq::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz, ap->szwf, ap->pad_constant, ap->pad_type);
+                pq::c_lorenzo_2d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, blksz, vecsz, ap->szwf, ap->pad_constant, ap->pad_type, pad_vals, &pad_idx);
             }
         }
         else if (dims_L16[nDIM] == 3)
@@ -63,12 +65,14 @@ double run_sample_blocks(argparse* ap, T* data, T* outlier, Q* code, size_t cons
                 size_t b0 = rand() % dims_L16[nBLK0];
                 size_t b1 = rand() % dims_L16[nBLK1];
                 size_t b2 = rand() % dims_L16[nBLK2];
-                pq::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz, ap->szwf, ap->pad_constant, ap->pad_type);
+                pq::c_lorenzo_3d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, b1, b2, blksz, vecsz, ap->szwf, ap->pad_constant, ap->pad_type, pad_vals, &pad_idx);
             }
         }
     }//end iterations
 
     auto end = hires::now();
+
+    delete[] pad_vals;
     return static_cast<duration_t>(end - start).count() / (iterations); //end timing
 }
 
@@ -77,7 +81,7 @@ int autotune_block_sizes(argparse* ap, double* timing, T* data, T* outlier, Q* b
 {
 	const int NSIZES = 4;
 	const int sizes[NSIZES] = {8, 16, 32, 64};
-	int blksz;
+	int blksz = 8;
 	double newTime;
 
 	*timing = run_sample_blocks<T, Q>(ap, data, outlier, bcode, dims, ebs_L4);
@@ -94,8 +98,6 @@ int autotune_block_sizes(argparse* ap, double* timing, T* data, T* outlier, Q* b
 template <typename T, typename Q>
 int autotune_vector_len(argparse* ap, int* blksz, double* timing, T* data, T* outlier, Q* bcode, size_t const* const dims, double const* const ebs_L4)
 {
-	const int NSIZES = 2;
-	const int sizes[NSIZES] = {256, 512};
 	int vecsz, blksz_256, blksz_512;
 	double time_512, time_256;
 

@@ -2,6 +2,7 @@
 #define UTILS_PAD_HH
 
 #include <iostream>
+#include <cmath>
 
 #include "../types.hh"
 
@@ -13,7 +14,7 @@
 namespace padding {
 
 template <typename T>
-T* fill_2d_block(T* array, size_t* dims, size_t blkSize, size_t b0, size_t b1)
+T* fill_2d_block(T* array, const size_t* dims, size_t blkSize, size_t b0, size_t b1)
 {
     T* block = (T*)malloc(sizeof(T) * blkSize * blkSize);
 
@@ -35,7 +36,7 @@ T* fill_2d_block(T* array, size_t* dims, size_t blkSize, size_t b0, size_t b1)
 }
 
 template <typename T>
-T* fill_3d_block(T* array, size_t* dims, size_t blkSize, size_t b0, size_t b1, size_t b2)
+T* fill_3d_block(T* array, const size_t* dims, size_t blkSize, size_t b0, size_t b1, size_t b2)
 {
     T* block = (T*)malloc(sizeof(T) * blkSize * blkSize * blkSize);
 
@@ -119,7 +120,7 @@ T find_avg(T* array, size_t* dims)
 template <typename T>
 T find_pad_value(T* array, int scalarType, size_t* dims, T constValue)
 {
-    T scalar;
+    T scalar = 0;
     if (scalarType == MAX_VALUE)
     {
         scalar = find_max<T>(array, dims);
@@ -164,7 +165,7 @@ T* find_edge_pad_value(T* block, int padType, int nDims, size_t blkSize, T const
             T top_edge[blkSize], *topEdgePtr = top_edge;
             T left_edge[blkSize], *leftEdgePtr = left_edge;
 
-            for (int i = 0; i < blkSize; i++)
+            for (size_t i = 0; i < blkSize; i++)
             {
                 top_edge[i]  = block[i];
                 left_edge[i] = block[i * blkSize];
@@ -184,9 +185,9 @@ T* find_edge_pad_value(T* block, int padType, int nDims, size_t blkSize, T const
             leftEdgePtr = left_edge;
             frontEdgePtr = front_edge;
 
-            for (int j = 0; j < blkSize; j++)
+            for (size_t j = 0; j < blkSize; j++)
             {
-                for (int i = 0; i < blkSize; i++)
+                for (size_t i = 0; i < blkSize; i++)
                 {
                     front_edge[i + j * blkSize] = block[i + j * blkSize];
                     left_edge[i + j * blkSize]  = block[i * blkSize + j * blkSize * blkSize];
@@ -204,61 +205,146 @@ T* find_edge_pad_value(T* block, int padType, int nDims, size_t blkSize, T const
 }
 
 template <typename T>
-T* block_pad(T* block, int nDims, int padType, size_t blkSize, T constValue, double padValueModifier)
+T* block_pad(T* block, int nDims, int padType, size_t blkSize, T constValue, double padValueModifier, T* padValue)
 {
-    T* padBlockPtr;
+    size_t blockLength = pow((blkSize + 1), nDims);
+    T* paddedBlock = new T[blockLength];
 
     if (nDims == 2)
     {
         size_t dims[3] {blkSize, blkSize, 1};
 
-        T padValue = find_pad_value<T>(block, padType, dims, constValue);
-        padValue *= padValueModifier; // adjust padding value for prequantization
+        T padValueLocal = find_pad_value<T>(block, padType, dims, constValue);
+        padValueLocal *= padValueModifier; // adjust padding value for prequantization
+        padValueLocal = round(padValueLocal);
 
-        T paddedBlock[(blkSize + 1) * (blkSize + 1)];
         for (size_t j = 0; j < blkSize + 1; j++)
         {
             for (size_t i = 0; i < blkSize + 1; i++)
             {
-                paddedBlock[i + j * (blkSize + 1)] = (i == 0 || j == 0) ? padValue : 0;
+                paddedBlock[i + j * (blkSize + 1)] = (i == 0 || j == 0) ? padValueLocal : 0;
             }
         }
-        padBlockPtr = paddedBlock;
+        *padValue = padValueLocal;
     }
     else if (nDims == 3)
     {
         size_t dims[3] {blkSize, blkSize, blkSize};
 
-        T padValue = find_pad_value<T>(block, padType, dims, constValue);
-        padValue *= padValueModifier; // adjust padding value for prequantization
+        T padValueLocal = find_pad_value<T>(block, padType, dims, constValue);
+        padValueLocal *= padValueModifier; // adjust padding value for prequantization
+        padValueLocal = round(padValueLocal);
 
-        T paddedBlock[(blkSize + 1) * (blkSize + 1) * (blkSize + 1)];
         for (size_t k = 0; k < blkSize + 1; k++)
         {
             for (size_t j = 0; j < blkSize + 1; j++)
             {
                 for (size_t i = 0; i < blkSize + 1; i++)
                 {
-                    paddedBlock[i + j * (blkSize + 1) + k * (blkSize + 1) * (blkSize + 1)] = (i == 0 || j == 0 || k == 0) ? padValue : 0;
+                    paddedBlock[i + j * (blkSize + 1) + k * (blkSize + 1) * (blkSize + 1)] = (i == 0 || j == 0 || k == 0) ? padValueLocal : 0;
                 }
             }
         }
-        padBlockPtr = paddedBlock;
+        *padValue = padValueLocal;
     }
 
-    return padBlockPtr;
+    return paddedBlock;
 }
 
 template <typename T>
-T* edge_pad(T* block, int nDims, int padType, size_t* dims, size_t blkSize, T constValue, double padValueModifier)
+T* edge_pad(T* block, int nDims, int padType, size_t* dims, size_t blkSize, T constValue, double padValueModifier, T** padValues)
 {
-    T* padValues = find_edge_pad_value(block, padType, nDims, blkSize, constValue);
-    for (int i = 0; i < nDims; i++) padValues[i] *= padValueModifier; // adjust padding value for prequantization
-    T* padBlockPtr;
+    T* padValuesLocal = find_edge_pad_value(block, padType, nDims, blkSize, constValue);
+    for (int i = 0; i < nDims; i++)
+    {
+        padValuesLocal[i] *= padValueModifier; // adjust padding value for prequantization
+        padValuesLocal[i] = round(padValuesLocal[i]);
+    }
+    //T* padBlockPtr;
+    size_t blockLength = pow((blkSize + 1), nDims);
+    auto paddedBlock = new T[blockLength] {0};
 
     if (nDims == 2)
     {
-        T paddedBlock[(blkSize + 1) * (blkSize + 1)];
+        //T paddedBlock[(blkSize + 1) * (blkSize + 1)] {0};
+        for (size_t j = 0; j < blkSize + 1; j++)
+        {
+            for (size_t i = 0; i < blkSize + 1; i++)
+            {
+                paddedBlock[i + j * (blkSize + 1)] = (i == 0) ? padValuesLocal[0] : (j == 0) ? padValuesLocal[1] : 0;
+            }
+        }
+
+      //  padBlockPtr = paddedBlock;
+    }
+    else if (nDims == 3)
+    {
+        //T paddedBlock[(blkSize + 1) * (blkSize + 1) * (blkSize + 1)] {0};
+        for (size_t k = 0; k < blkSize + 1; k++)
+        {
+            for (size_t j = 0; j < blkSize + 1; j++)
+            {
+                for (size_t i = 0; i < blkSize + 1; i++)
+                {
+                    paddedBlock[i + j * (blkSize + 1) + k * (blkSize + 1) * (blkSize + 1)] = (k == 0) ? padValuesLocal[0] : (j == 0) ? padValuesLocal[1] : (i == 0) ? padValuesLocal[2] : 0;
+                }
+            }
+        }
+
+     //   padBlockPtr = paddedBlock;
+    }
+
+    *padValues = padValuesLocal;
+    return paddedBlock;
+}
+
+template <typename T>
+T* x_block_pad(int nDims, size_t blkSize, T padValueLocal)
+{
+//    T* padBlockPtr;
+    size_t blockLength = pow((blkSize + 1), nDims);
+    auto paddedBlock = new T[blockLength] {0};
+
+    if (nDims == 2)
+    {
+        //T paddedBlock[(blkSize + 1) * (blkSize + 1)];
+        for (size_t j = 0; j < blkSize + 1; j++)
+        {
+            for (size_t i = 0; i < blkSize + 1; i++)
+            {
+                paddedBlock[i + j * (blkSize + 1)] = (i == 0 || j == 0) ? padValueLocal : 0;
+            }
+        }
+ //       padBlockPtr = paddedBlock;
+    }
+    else if (nDims == 3)
+    {
+        //T paddedBlock[(blkSize + 1) * (blkSize + 1) * (blkSize + 1)];
+        for (size_t k = 0; k < blkSize + 1; k++)
+        {
+            for (size_t j = 0; j < blkSize + 1; j++)
+            {
+                for (size_t i = 0; i < blkSize + 1; i++)
+                {
+                    paddedBlock[i + j * (blkSize + 1) + k * (blkSize + 1) * (blkSize + 1)] = (i == 0 || j == 0 || k == 0) ? padValueLocal : 0;
+                }
+            }
+        }
+  //      padBlockPtr = paddedBlock;
+    }
+
+    return paddedBlock;
+    //return padBlockPtr;
+}
+
+template <typename T>
+T* x_edge_pad(int nDims, size_t blkSize, T* padValues)
+{
+    size_t blockLength = pow((blkSize + 1), nDims);
+    auto paddedBlock = new T[blockLength] {0};
+
+    if (nDims == 2)
+    {
         for (size_t j = 0; j < blkSize + 1; j++)
         {
             for (size_t i = 0; i < blkSize + 1; i++)
@@ -266,29 +352,25 @@ T* edge_pad(T* block, int nDims, int padType, size_t* dims, size_t blkSize, T co
                 paddedBlock[i + j * (blkSize + 1)] = (i == 0) ? padValues[0] : (j == 0) ? padValues[1] : 0;
             }
         }
-
-        padBlockPtr = paddedBlock;
     }
     else if (nDims == 3)
     {
-        T paddedBlock[(blkSize + 1) * (blkSize + 1) * (blkSize + 1)];
         for (size_t k = 0; k < blkSize + 1; k++)
         {
             for (size_t j = 0; j < blkSize + 1; j++)
             {
                 for (size_t i = 0; i < blkSize + 1; i++)
                 {
-                    paddedBlock[i + j * (blkSize + 1) + k * (blkSize + 1) * (blkSize + 1)] = (i == 0) ? padValues[0] : (j == 0) ? padValues[1] : (k == 0) ? padValues[2] : 0;
+                    paddedBlock[i + j * (blkSize + 1) + k * (blkSize + 1) * (blkSize + 1)] = (k == 0) ? padValues[0] : (j == 0) ? padValues[1] : (i == 0) ? padValues[2] : 0;
                 }
             }
         }
 
-        padBlockPtr = paddedBlock;
     }
 
-    delete[] padValues;
-    return padBlockPtr;
+    return paddedBlock;
 }
+
 
 } // namespace padding
 
