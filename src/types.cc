@@ -39,7 +39,6 @@ template double GetDatumValueRange<double>(string fname, size_t l);
 
 ErrorBoundConfigurator::ErrorBoundConfigurator(int _capacity, double eb)
 {
-    int _base = 10;
     capacity = _capacity;
     radius   = capacity / 2;
     mode     = std::string("ABS");

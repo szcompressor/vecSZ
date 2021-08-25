@@ -31,10 +31,11 @@ const int   version       = 210601;
 const int   compatibility = 0;
 
 bool isNumeric(string str) {
-   for (int i = 0; i < str.length(); i++)
-      if (isdigit(str[i]) == false)
-         return false;
-      return true;
+   for (size_t i = 0; i < str.length(); i++)
+   {
+       if (isdigit(str[i]) == false) return false;
+   }
+   return true;
 }
 
 void ArgParse::vecszDoc()
@@ -279,21 +280,6 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
             return (int)res;
         };
 
-        auto str2fp = [&](const char* s) {
-            char* end;
-            auto  res = std::strtod(s, &end);
-            if (*end) {
-                const char* notif = "invalid option value, non-convertible part: ";
-                cerr << log_err << notif << "\e[1m" << end << "\e[0m" << endl;
-                cerr << string(log_null.length() + strlen(notif), ' ') << "\e[1m"  //
-                     << string(strlen(end), '~')                                   //
-                     << "\e[0m" << endl;
-                trap(-1);
-                return 0;  // just a placeholder
-            }
-            return (int)res;
-        };
-
 	int i = 1;
 	while (i < argc)
 	{
@@ -520,7 +506,7 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
                 default:
                     const char* notif_prefix = "invalid option value at position ";
                     char*       notif;
-                    int         size = asprintf(&notif, "%d: %s", i, argv[i]);
+                    asprintf(&notif, "%d: %s", i, argv[i]);
                     cerr << log_err << notif_prefix << "\e[1m" << notif << "\e[0m"
                          << "\n";
                     cerr << string(log_null.length() + strlen(notif_prefix), ' ');
@@ -533,7 +519,7 @@ void ArgParse::ParseVecszArgs(int argc, char** argv)
         else {
             const char* notif_prefix = "invalid option at position ";
             char*       notif;
-            int         size = asprintf(&notif, "%d: %s", i, argv[i]);
+            asprintf(&notif, "%d: %s", i, argv[i]);
             cerr << log_err << notif_prefix << "\e[1m" << notif
                  << "\e[0m"
                     "\n"

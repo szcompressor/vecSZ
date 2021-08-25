@@ -169,7 +169,7 @@ template<typename C>
 size_t* get_border_outliers_1d(size_t* outlier, C* code, size_t* dims, int blksz, int b0)
 {
 	size_t idx0 = b0 * blksz;
-	for (size_t i0 = 0; i0 < blksz; i0++)
+	for (int i0 = 0; i0 < blksz; i0++)
 	{
 		size_t id = idx0 + i0;
 		if (id >= dims[DIM0]) continue;
@@ -189,9 +189,9 @@ size_t* get_border_outliers_2d(size_t* outlier, C* code, size_t* dims, int blksz
 {
 	size_t idx0 = b0 * blksz;
 	size_t idx1 = b1 * blksz;
-	for (size_t i1 = 0; i1 < blksz; i1++)
+	for (int i1 = 0; i1 < blksz; i1++)
 	{
-		for (size_t i0 = 0; i0 < blksz; i0++)
+		for (int i0 = 0; i0 < blksz; i0++)
 		{
 			size_t gi1 = idx1 + i1;
 			size_t gi0 = idx0 + i0;
@@ -215,11 +215,11 @@ size_t* get_border_outliers_3d(size_t* outlier, C* code, size_t* dims, int blksz
 	size_t idx0 = b0 * blksz;
 	size_t idx1 = b1 * blksz;
 	size_t idx2 = b2 * blksz;
-	for (size_t i2 = 0; i2 < blksz; i2++)
+	for (int i2 = 0; i2 < blksz; i2++)
 	{
-		for (size_t i1 = 0; i1 < blksz; i1++)
+		for (int i1 = 0; i1 < blksz; i1++)
 		{
-			for (size_t i0 = 0; i0 < blksz; i0++)
+			for (int i0 = 0; i0 < blksz; i0++)
 			{
 				size_t gi2 = idx2 + i2;
 				size_t gi1 = idx1 + i1;
