@@ -52,4 +52,3 @@ The following **essential** arguments are required,
 # Limitations
 - Current support for only x86 architectures (AVX/SSE support)
 - Support for single-precision float data only (f32)
-- Block size must be a multiple of the vector register used (e.g. 8, 16, 32, 64)
