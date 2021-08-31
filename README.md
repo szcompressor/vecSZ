@@ -7,7 +7,7 @@ vecSZ is an implementation of the popular [SZ lossy compressor](https://github.c
 
 To compile vecSZ with default optimizations (shown below), just type `make`.
 
-### Default Optimizations 
+### Default Optimizations
 All options are shown with their default value.
 ```
 Enable vector support   -  vector_support=AVX2
@@ -52,4 +52,3 @@ The following **essential** arguments are required,
 # Limitations
 - Current support for only x86 architectures (AVX/SSE support)
 - Support for single-precision float data only (f32)
-- Block size must be a multiple of the vector register used (e.g. 8, 16, 32, 64)
