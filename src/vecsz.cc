@@ -1,5 +1,3 @@
-#pragma GCC option("arch=native","tune=native","no-zero-upper") //Enable AVX
-
 #include <cstring>
 #include <string>
 #include <vector>
