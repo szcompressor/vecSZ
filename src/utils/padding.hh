@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "../types.hh"
+#include "../constants.hh"
 
 #define MAX_VALUE 0
 #define MIN_VALUE 1

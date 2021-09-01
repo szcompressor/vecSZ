@@ -45,7 +45,7 @@ double run_sample_blocks(argparse* ap, T* data, T* outlier, Q* code, size_t cons
             for (size_t n = 0; n < nsamples; n++)
             {
                 size_t b0 = rand() % dims_L16[nBLK0];
-                pq::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
+                pq::c_lorenzo_1d1l<T, Q>(data, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz, ap->szwf, ap->pad_constant, ap->pad_type, pad_vals, &pad_idx);
             }
         } else if (dims_L16[nDIM] == 2)
         {

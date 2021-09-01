@@ -113,7 +113,7 @@ void* Compress(argparse* ap,
         #pragma omp parallel for
         for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
         {
-            pq::c_lorenzo_1d1l<T, Q>(data_in, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz);
+            pq::c_lorenzo_1d1l<T, Q>(data_in, outlier, code, dims_L16, ebs_L4, b0, blksz, vecsz, ap->szwf, ap->pad_constant, ap->pad_type, pad_vals, &pad_idx);
         }
     }
     else if (dims_L16[nDIM] == 2)
@@ -334,7 +334,7 @@ void* Decompress(argparse*      ap,
         #pragma omp parallel for
         for (size_t b0 = 0; b0 < dims_L16[nBLK0]; b0++)
         {
-            pq::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, blksz);
+            pq::x_lorenzo_1d1l<T, Q>(xdata, outlier, code, dims_L16, ebs_L4[EBx2], b0, blksz, ap->szwf, &pad_idx, pad_vals);
         }
     }
     else if (dims_L16[nDIM] == 2)

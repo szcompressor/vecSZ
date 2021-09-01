@@ -3,13 +3,12 @@
 
 #include <cstddef>
 #include <math.h>
-#include <string> //REMOVE NOW
-#include <fstream> //REMOVE NOW
 #include <immintrin.h> //avx intrinsics
 
 #include "types.hh"
 #include "constants.hh"
 #include "utils/padding.hh"
+#include "argument_parser/argparse.hh"
 
 namespace vecsz
 {
@@ -17,10 +16,34 @@ namespace vecsz
   {
 
     template <typename T, typename Q>
-    void c_lorenzo_1d1l(T *data, T *outlier, Q *bcode, size_t const *const dims_L16, double const *const ebs_L4, size_t b0, size_t blksz, int vector_reg)
+    void c_lorenzo_1d1l(T *data,
+                        T *outlier,
+                        Q *bcode,
+                        size_t const *const dims_L16,
+                        double const *const ebs_L4,
+                        size_t b0,
+                        size_t blksz,
+                        int vector_reg,
+                        struct SZWorkflow szwf,
+                        T pad_constant,
+                        int pad_type,
+                        T* pad_vals,
+                        size_t* pad_idx)
     {
       auto radius = static_cast<Q>(dims_L16[RADIUS]);
       size_t _idx0 = b0 * blksz;
+
+      T padding = 0.0;
+      if (szwf.block_padding or szwf.edge_padding)
+      {
+        size_t dims[3] {blksz, 1, 1};
+        padding = padding::find_pad_value(&data[_idx0], pad_type, dims, pad_constant);
+        pad_vals[(*pad_idx)++] = padding;
+      }
+      else if (szwf.global_padding)
+      {
+          padding = pad_vals[0];
+      }
 
       // prequantization with AVX
 #ifdef AVX512
@@ -99,7 +122,7 @@ namespace vecsz
         if (vector_reg == 512)
         {
           const __m512 vebx2 = _mm512_set1_ps(ebs_L4[EBx2_r]);
-          const __m512 vzero = _mm512_setzero_ps();
+          const __m512 vpad  = _mm512_set1_ps(padding);
           const __m512 vradius = _mm512_set1_ps(radius);
           __mmask16 pMask_512 = _mm512_int2mask(0xFFFE);
           __m512 vpred;
@@ -108,7 +131,8 @@ namespace vecsz
           {
             __m512 current = _mm512_loadu_ps(&data[id]);
             if (id < _idx0 + 1)
-              vpred = _mm512_maskz_loadu_ps(pMask_512, &data[id - 1]);
+              /* vpred = _mm512_maskz_loadu_ps(pMask_512, &data[id - 1]); */
+              vpred = _mm512_mask_blend_ps(pMask_512, &data[id - 1], vpad);
             else
               vpred = _mm512_loadu_ps(&data[id - 1]);
             __m512 vposterr = _mm512_sub_ps(current, vpred);
@@ -126,17 +150,22 @@ namespace vecsz
 #endif
 
         const __m256 vradius_256 = _mm256_set1_ps(radius);
+        const __m256 vpad  = _mm256_set1_ps(padding);
         const __m256i mask = _mm256_set1_epi32(0xFFFFFFFF);
         __m256i pMask_256 = _mm256_set_epi32(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0);
 
         for (; id < blk_end8; id += 8)
         {
           __m256 current = _mm256_loadu_ps(&data[id]);
+          __m256 vdata   = _mm256_loadu_ps(&data[id - 1]);
           __m256 vpred;
+          /* __m256 vpred; */
           if (id < _idx0 + 1)
-            vpred = _mm256_maskload_ps(&data[id - 1], pMask_256);
+            vpred   = _mm256_blend_ps(vpad, vdata, 0xFE);
+          /*   vpred = _mm256_maskload_ps(&data[id - 1], pMask_256); */
           else
-            vpred = _mm256_loadu_ps(&data[id - 1]);
+            vpred   = vdata;
+          /*   vpred = _mm256_loadu_ps(&data[id - 1]); */
           __m256 vposterr = _mm256_sub_ps(current, vpred);
           __m256 absposterr = _mm256_sqrt_ps(_mm256_mul_ps(vposterr, vposterr));
           __m256 vquant = _mm256_cmp_ps(absposterr, vradius_256, 1);
@@ -149,7 +178,7 @@ namespace vecsz
         }
         for (; id < blksz; id++)
         {
-          T pred = id < _idx0 + 1 ? 0 : data[id - 1];
+          T pred = id < _idx0 + 1 ? padding : data[id - 1];
           T posterr = data[id] - pred;
           bool quantizable = fabs(posterr) < radius;
           Q _code = static_cast<Q>(posterr + radius);
@@ -165,7 +194,7 @@ namespace vecsz
           size_t id = _idx0 + i0;
           if (id >= dims_L16[DIM0])
             continue;
-          T pred = id < _idx0 + 1 ? 0 : data[id - 1];
+          T pred = id < _idx0 + 1 ? padding : data[id - 1];
           T posterr = data[id] - pred;
           bool quantizable = fabs(posterr) < radius;
           Q _code = static_cast<Q>(posterr + radius);
@@ -884,16 +913,24 @@ namespace vecsz
     }
 
     template <typename T, typename Q>
-    void x_lorenzo_1d1l(T *xdata, T *outlier, Q *bcode, size_t const *const dims_L16, double _2EB, size_t b0, int blksz)
+    void x_lorenzo_1d1l(T *xdata, T *outlier, Q *bcode, size_t const *const dims_L16, double _2EB, size_t b0, int blksz, SZWorkflow szwf, size_t* pad_idx, T* pad_vals)
     {
       auto radius = static_cast<Q>(dims_L16[RADIUS]);
       size_t _idx0 = b0 * blksz;
+      float padding = 0;
+      if (szwf.block_padding or szwf.edge_padding)
+      {
+          padding = pad_vals[(*pad_idx)++];
+      }
+      else {
+          padding = pad_vals[0];
+      }
       for (int i0 = 0; i0 < blksz; i0++)
       {
         size_t id = _idx0 + i0;
         if (id >= dims_L16[DIM0])
           continue;
-        T pred = id < _idx0 + 1 ? 0 : xdata[id - 1];
+        T pred = id < _idx0 + 1 ? padding : xdata[id - 1];
         xdata[id] = bcode[id] == 0 ? outlier[id] : static_cast<T>(pred + (bcode[id] - radius));
       }
       for (int i0 = 0; i0 < blksz; i0++)
