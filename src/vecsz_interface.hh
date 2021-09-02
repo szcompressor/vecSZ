@@ -56,9 +56,6 @@ void* Compress(argparse* ap,
         ap->PrintArgs();
     }
 
-    ////////////////////////////////////////////////////////////////////////////////
-    // start of compression
-    ////////////////////////////////////////////////////////////////////////////////
     double timing;
     if (ap->szwf.autotune)
     {
@@ -154,7 +151,7 @@ void* Compress(argparse* ap,
         LogAll(log_dbg, "leniant gflops:", LGflops_s);
     }
 
-    // huffman encode
+    // huffman encode quantized data
     uint8_t* huff_result = NULL;
     size_t huff_size = 0;
     LogAll(log_info, "begin huffman tree generation");
@@ -188,53 +185,47 @@ void* Compress(argparse* ap,
         analysis::getEntropy<Q>(code,len,ap->dict_size);
     }
 
-        // organize necessary metadata and write to file
-	    *data_size = (pad_idx + *num_outlier) * sizeof(T) + huff_size * sizeof(uint8_t) + 1 * sizeof(double); /* OUTLIER + HUFF_ENC_DATA + EB */
+    // organize necessary metadata and write to file
+	*data_size = (pad_idx + *num_outlier) * sizeof(T) + huff_size * sizeof(uint8_t) + 1 * sizeof(double); /* OUTLIER + HUFF_ENC_DATA + EB */
 
-	    //dimension info size
-        auto dims_metadata = new int[dims_L16[nDIM] + 1];
-        dims_metadata[0] = dims_L16[nDIM];
-        for (size_t i = 0; i < dims_L16[nDIM]; i++) dims_metadata[i + 1] = dims_L16[i];
-	    *data_size += (dims_L16[nDIM] + 1) * sizeof(int); /* + DIMS */
+	//dimension info size
+    auto dims_metadata = new int[dims_L16[nDIM] + 1];
+    dims_metadata[0] = dims_L16[nDIM];
+    for (size_t i = 0; i < dims_L16[nDIM]; i++) dims_metadata[i + 1] = dims_L16[i];
+	*data_size += (dims_L16[nDIM] + 1) * sizeof(int); /* + DIMS */
 
-	    // //length of compressed data size
-        // auto len_metadata = new size_t[2];
-        // len_metadata[0] = huff_size;
-        // len_metadata[1] = *num_outlier;
-	    // *data_size += 2 * sizeof(size_t); /* + LEN_METADATA */
+	//length of compressed data size
+    auto len_metadata = new size_t[3];
+    len_metadata[0] = pad_idx;
+    len_metadata[1] = huff_size;
+    len_metadata[2] = *num_outlier;
+	*data_size += 3 * sizeof(size_t); /* + LEN_METADATA */
 
-	    //length of compressed data size
-        auto len_metadata = new size_t[3];
-        len_metadata[0] = pad_idx;
-        len_metadata[1] = huff_size;
-        len_metadata[2] = *num_outlier;
-	    *data_size += 3 * sizeof(size_t); /* + LEN_METADATA */
+	auto data_out = datapack::pack(*data_size, dims_metadata, dims_L16[nDIM], len_metadata, 3, ap->eb, pad_vals, huff_result, outliers);
 
-	    auto data_out = datapack::pack(*data_size, dims_metadata, dims_L16[nDIM], len_metadata, 3, ap->eb, pad_vals, huff_result, outliers);
+	// lossless pass
+	LogAll(log_dbg, "compression ratio:", (float)(len * sizeof(T)) / *data_size);
+    if (ap->szwf.lossless_pass)
+    {
+	    unsigned char* lossless_out = NULL;
+        *lossless_size = 0;
 
-	    // lossless pass
-	    LogAll(log_dbg, "compression ratio:", (float)(len * sizeof(T)) / *data_size);
-        if (ap->szwf.lossless_pass)
-        {
-	        unsigned char* lossless_out = NULL;
-            *lossless_size = 0;
+        if (ap->szwf.lossless_gzip) *lossless_size = vecsz::lossless::sz_lossless_compress(GZIP_COMPRESSOR, 3, data_out, *data_size, &lossless_out);
+        else *lossless_size = vecsz::lossless::sz_lossless_compress(ZSTD_COMPRESSOR, 3, data_out, *data_size, &lossless_out);
+	    LogAll(log_dbg, "compression ratio after lossless pass:", (float)(len * sizeof(T)) / *lossless_size);
 
-	        if (ap->szwf.lossless_gzip) *lossless_size = vecsz::lossless::sz_lossless_compress(GZIP_COMPRESSOR, 3, data_out, *data_size, &lossless_out);
-            else *lossless_size = vecsz::lossless::sz_lossless_compress(ZSTD_COMPRESSOR, 3, data_out, *data_size, &lossless_out);
-	        LogAll(log_dbg, "compression ratio after lossless pass:", (float)(len * sizeof(T)) / *lossless_size);
+        return lossless_out;
+    }
 
-            return lossless_out;
-        }
+    //clean-up
+    delete[] code;
+    delete[] data_in;
+    delete[] outlier;
+    delete[] outliers;
+    delete[] len_metadata;
+    delete[] dims_metadata;
 
-        //clean-up
-        delete[] code;
-        delete[] data_in;
-        delete[] outlier;
-        delete[] outliers;
-        delete[] len_metadata;
-        delete[] dims_metadata;
-
-        return data_out;
+    return data_out;
 }
 
 template <typename T, typename Q>
