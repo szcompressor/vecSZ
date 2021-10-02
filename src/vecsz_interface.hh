@@ -9,11 +9,13 @@
 #include "dualquant.hh"
 #include "huffman.hh"
 #include "lossless.hh"
+#include "compress_float.hh"
 #include "utils/analysis.hh"
 #include "utils/verify.hh"
 #include "utils/io.hh"
 #include "utils/datapack.hh"
 #include "utils/padding.hh"
+#include <cstdint>
 
 
 namespace pq  = vecsz::predictor_quantizer;
@@ -163,12 +165,19 @@ void* Compress(argparse* ap,
     double htime = static_cast<duration_t>(hend - hstart).count();
     if (ap->verbose) LogAll(log_dbg, "huffman time:", htime, "sec");
 
+    //pack outliers into smaller array
     auto outliers = new T[len];
     for (size_t i = 0; i < len; i++)
     {
         if (code[i] == 0) outliers[(*num_outlier)++] = outlier[i];
     }
     if (ap->verbose) LogAll(log_dbg, "number of outliers:", *num_outlier);
+
+    // convert outliers to integers
+    /* int* c_outliers = nullptr, *c_padvals = nullptr; */
+    /* unsigned int c_outlier_len, c_padval_len; */
+    /* compress_float_arr<T,uint8_t>(outliers, *num_outlier, &c_outliers, &c_outlier_len); */
+    /* compress_float_arr<T,uint8_t>(pad_vals, pad_idx, &c_padvals, &c_padval_len); */
 
     auto tend = hires::now();
     LogAll(log_info, "complete lossy compression:");
@@ -185,8 +194,18 @@ void* Compress(argparse* ap,
         analysis::getEntropy<Q>(code,len,ap->dict_size);
     }
 
+    unsigned char* huff_pad_vals, *huff_outliers;
+    unsigned int huff_pad_size = 0, huff_outliers_size = 0;
+    huff_outliers = compress_float_arr<T>(ap->szwf, outliers, *num_outlier, &huff_outliers_size);
+    huff_pad_vals = compress_float_arr<T>(ap->szwf, pad_vals, pad_idx, &huff_pad_size);
+
+
+    LogAll(log_info, "Outlier size before huffman: ", *num_outlier * sizeof(float), " After: ", huff_outliers_size);
+
     // organize necessary metadata and write to file
-	*data_size = (pad_idx + *num_outlier) * sizeof(T) + huff_size * sizeof(uint8_t) + 1 * sizeof(double); /* OUTLIER + HUFF_ENC_DATA + EB */
+	/* *data_size = (pad_idx + *num_outlier) * sizeof(T) + huff_size * sizeof(uint8_t) + 1 * sizeof(double); /1* OUTLIER + HUFF_ENC_DATA + EB *1/ */
+	*data_size = (huff_size + huff_outliers_size + huff_pad_size) * sizeof(uint8_t) + 1 * sizeof(double); /* OUTLIER + HUFF_ENC_DATA + EB */
+
 
 	//dimension info size
     auto dims_metadata = new int[dims_L16[nDIM] + 1];
@@ -195,13 +214,16 @@ void* Compress(argparse* ap,
 	*data_size += (dims_L16[nDIM] + 1) * sizeof(int); /* + DIMS */
 
 	//length of compressed data size
-    auto len_metadata = new size_t[3];
-    len_metadata[0] = pad_idx;
+    auto len_metadata = new unsigned int[4];
+    len_metadata[0] = huff_pad_size;
     len_metadata[1] = huff_size;
-    len_metadata[2] = *num_outlier;
-	*data_size += 3 * sizeof(size_t); /* + LEN_METADATA */
+    /* len_metadata[2] = *num_outlier; */
+    len_metadata[2] = huff_outliers_size;
+    len_metadata[3] = pad_idx;
+	*data_size += 4 * sizeof(unsigned int); /* + LEN_METADATA */
 
-	auto data_out = datapack::pack(*data_size, dims_metadata, dims_L16[nDIM], len_metadata, 3, ap->eb, pad_vals, huff_result, outliers);
+	/* auto data_out = datapack::pack<uint8_t,uint8_t>(*data_size, dims_metadata, dims_L16[nDIM], len_metadata, 3, ap->eb, huff_pad_vals, huff_result, huff_outliers); */
+	auto data_out = datapack::pack<uint8_t,unsigned char>(*data_size, dims_metadata, dims_L16[nDIM], len_metadata, 4, ap->eb, huff_pad_vals, huff_result, huff_outliers);
 
 	// lossless pass
 	LogAll(log_dbg, "compression ratio:", (float)(len * sizeof(T)) / *data_size);
@@ -251,13 +273,16 @@ void* Decompress(argparse*      ap,
     int      ndims;
     double   eb;
     int*     dims;
-    size_t   pad_length;
+    unsigned int *lens;
+    unsigned int   pad_length, outlier_lengths;
     uint8_t* huffman;
+    unsigned char* c_outliers;
+    unsigned char* c_pad_vals;
     T*       outliers;
     T*       pad_vals;
 
     LogAll(log_info, "unpack input data");
-    datapack::unpack<uint8_t,T>(data_in, &ndims, &dims, &eb, &pad_vals, &pad_length, &huffman, &outliers);
+    datapack::unpack<uint8_t,unsigned char>(data_in, &ndims, &dims, &lens, &eb, &c_pad_vals, &pad_length, &huffman, &c_outliers);
 
     ap->ndim = ndims;
     if (ap->ndim == 1) {ap->dim4._0 = dims[0]; ap->dim4._1 = 1; ap->dim4._2 = 1; ap->dim4._3 = 1;}
@@ -267,12 +292,12 @@ void* Decompress(argparse*      ap,
 
     ap->eb = eb;
 
+    DV::HuffmanTree*    tree;
     size_t const* const dims_L16       = InitializeDims(ap);
     auto                eb_config      = new config_t(ap->dict_size, ap->eb);
     size_t              blksz          = ap->block_size;
     std::string&        finame         = ap->files.input_file;
     size_t              len            = dims_L16[LEN];
-    DV::HuffmanTree*    tree;
     auto                xdata          = new T[len];
     auto                outlier        = new T[len];
     auto                code           = new Q[len];
@@ -310,12 +335,23 @@ void* Decompress(argparse*      ap,
     if (ap->verbose) LogAll(log_dbg, "huffman reconstruction time:", static_cast<duration_t>(hend - hstart).count(), "sec");
 
     // reconstruct outliers array
+    /* size_t oi = 0; */
+    /* for (size_t i = 0; i < len; i++) */
+    /* { */
+    /*    outlier[i] = (code[i] == 0) ? outliers[oi++] : 0; */
+    /* } */
     size_t oi = 0;
+    for (size_t i = 0; i < len; i++) if (code[i] == 0) oi++ ;
+    if (ap->verbose) LogAll(log_dbg, "number of outliers:", oi);
+
+    outliers = decompress_float_arr<T>(c_outliers, lens[2], oi);
+    oi = 0;
     for (size_t i = 0; i < len; i++)
     {
        outlier[i] = (code[i] == 0) ? outliers[oi++] : 0;
     }
-    if (ap->verbose) LogAll(log_dbg, "number of outliers:", oi);
+
+    pad_vals = decompress_float_arr<T>(c_pad_vals, pad_length, lens[3]);
 
     LogAll(log_info, "invoke reverse prediction-quantization");
     auto pqstart = hires::now();

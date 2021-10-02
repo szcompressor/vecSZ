@@ -1,13 +1,15 @@
+#ifndef LOSSLESS_HH
+#define LOSSLESS_HH
 /**
  * @file lossless.hh
- * @author Griffin Dube 
- * @brief gzip and zstd compressor interface: adapted from SZ 
+ * @author Griffin Dube
+ * @brief gzip and zstd compressor interface: adapted from SZ
  *             callZlib.c and utility.c by Sheng Di
  * @version 0.1
  * @date 2021-07-01
- * 
+ *
  * @copyright Copyright (c) 2021
- * 
+ *
  */
 
 #include <iostream>
@@ -44,11 +46,11 @@ namespace vecsz {
             if(magic1==104&&magic2==129) //DC+DC
                 return 1;
             if(magic1==104&&magic2==222) //DC+BC
-                return 1;		
+                return 1;
             if(magic1==120&&magic2==1) //BC+BS
                 return 1;
-            if(magic1==120&&magic2==94) //BC+? 
-                return 1;		
+            if(magic1==120&&magic2==94) //BC+?
+                return 1;
             if(magic1==120&&magic2==156) //BC+DC
                 return 1;
             if(magic1==120&&magic2==218) //BC+BS
@@ -95,11 +97,11 @@ namespace vecsz {
 
             size_t p_size = 0, av_in = 0;
             uLong estCmpLen = deflateBound(&strm, dataLength);
-            *compressBytes = (unsigned char*)malloc(sizeof(unsigned char)*estCmpLen);	
-            unsigned char* out = *compressBytes; 
+            *compressBytes = (unsigned char*)malloc(sizeof(unsigned char)*estCmpLen);
+            unsigned char* out = *compressBytes;
 
             /* compress until end of file */
-            do {		
+            do {
                 p_size += SZ_ZLIB_BUFFER_SIZE;
                 if(p_size>=dataLength) { av_in = dataLength - (p_size - SZ_ZLIB_BUFFER_SIZE); flush = Z_FINISH;
                 }
@@ -128,10 +130,10 @@ namespace vecsz {
             } while (flush != Z_FINISH);
 
             /* clean up and return */
-            (void)deflateEnd(&strm);	
-            
-            return strm.total_out;	
-        }  
+            (void)deflateEnd(&strm);
+
+            return strm.total_out;
+        }
 
         /* zlib_uncompress5() from SZ */
         unsigned long zlib_uncompress(unsigned char* compressBytes, unsigned long cmpSize, unsigned char** oriData, unsigned long targetOriSize)
@@ -139,7 +141,7 @@ namespace vecsz {
             int err;
             z_stream d_stream = {0}; /* decompression stream */
 
-            *oriData = (unsigned char*)malloc(sizeof(unsigned char)*targetOriSize);		
+            *oriData = (unsigned char*)malloc(sizeof(unsigned char)*targetOriSize);
 
             d_stream.zalloc = (alloc_func)0;
             d_stream.zfree = (free_func)0;
@@ -150,7 +152,7 @@ namespace vecsz {
             d_stream.next_out = *oriData;
 
             err = inflateInit(&d_stream);
-            if (err != Z_OK && err != Z_STREAM_END) 
+            if (err != Z_OK && err != Z_STREAM_END)
             {
                 cerr << log_err << "inflateInit error: " << err << endl;
             }
@@ -160,25 +162,25 @@ namespace vecsz {
                 //err = inflate(&d_stream, Z_NO_FLUSH);
                 err = inflate(&d_stream, Z_SYNC_FLUSH);
                 if (err == Z_STREAM_END) break;
-                if (err != Z_OK && err != Z_STREAM_END) 
+                if (err != Z_OK && err != Z_STREAM_END)
                 {
                     cerr << log_err << "inflate error: " << err << endl;
                 }
             }
-            
+
             err = inflateEnd(&d_stream);
-            
-            if (err != Z_OK && err != Z_STREAM_END) 
+
+            if (err != Z_OK && err != Z_STREAM_END)
             {
                 cerr << log_err << "inflateEnd error: " << err << endl;
             }
 
             return d_stream.total_out;
-        }     
+        }
 
         unsigned long sz_lossless_compress(int losslessCompressor, int level, unsigned char* data, unsigned long dataLength, unsigned char** compressBytes)
         {
-            unsigned long outSize = 0; 
+            unsigned long outSize = 0;
             size_t estimatedCompressedSize = 0;
             switch(losslessCompressor)
             {
@@ -186,7 +188,7 @@ namespace vecsz {
                 outSize = zlib_compress(data, dataLength, compressBytes, level);
                 break;
             case ZSTD_COMPRESSOR:
-                if(dataLength < 100) 
+                if(dataLength < 100)
                     estimatedCompressedSize = 200;
                 else
                     estimatedCompressedSize = dataLength*1.2;
@@ -220,3 +222,5 @@ namespace vecsz {
     } // namespace lossless
 
 } // namespace vecsz
+
+#endif /* ifndef LOSSLESS_HH */
