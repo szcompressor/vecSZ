@@ -69,7 +69,7 @@ class ArgParse
 		int      dict_size{4096};
 		int      radius{2048};
 		int      vector_length{MAX_VECTOR_LENGTH};
-		int      block_size{8};
+		int      block_size{64};
 		int      num_iterations{-1};
 
         float global_pad_value{0};

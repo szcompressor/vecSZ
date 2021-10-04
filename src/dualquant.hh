@@ -123,16 +123,18 @@ namespace vecsz
         {
           const __m512 vebx2 = _mm512_set1_ps(ebs_L4[EBx2_r]);
           const __m512 vpad  = _mm512_set1_ps(padding);
+          const __m512 vzero = _mm512_setzero_ps();
           const __m512 vradius = _mm512_set1_ps(radius);
           __mmask16 pMask_512 = _mm512_int2mask(0xFFFE);
           __m512 vpred;
 
           for (; id < blk_end16; id += 16)
           {
-            __m512 current = _mm512_loadu_ps(&data[id]);
+            __m512 current  = _mm512_loadu_ps(&data[id]);
+            __m512 previous = _mm512_loadu_ps(&data[id - 1]);
             if (id < _idx0 + 1)
               /* vpred = _mm512_maskz_loadu_ps(pMask_512, &data[id - 1]); */
-              vpred = _mm512_mask_blend_ps(pMask_512, &data[id - 1], vpad);
+              vpred = _mm512_mask_blend_ps(pMask_512, previous, vpad);
             else
               vpred = _mm512_loadu_ps(&data[id - 1]);
             __m512 vposterr = _mm512_sub_ps(current, vpred);
